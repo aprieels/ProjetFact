@@ -6,43 +6,18 @@
 
 #define f(x)  (x*x+1)
 
-//structure qui peut contenir les arguments de la fonction main, permet de les transmettre a un thread
-typedef struct{
-	int argc;
-	char * argv[];//argv[argc]?
-} main_args;
-	
 
-
-void * consumer(void * arg){
-
-}
-
-void * producer(void * arg){
-	main_args * args=(main_args *) arg;
-	
-}
-
-
+int getmaxthreads(int argc, char * argv[]);
+void * consumer(void * arg);
+int lecture(int argc, char * argv[]);
 
 int main(int argc, char * argv[]){
 	//récupérer le nombre max de threads passé en argument
-	int nthr=0;
-	int a;
-	for(a=0; a<argc-1; a++){
-		if(strcmp(argv[a], "-maxthreads")==0){
-				nthr=atoi(argv[a+1]);//ajouter sécurité?
-		}
-	}
+	int nthr=getmaxthreads(argc, argv);
 printf("maxthr=%i\n", nthr);
 	if(nthr==0)
 		return EXIT_FAILURE;
 
-
-	//lance le thread producer pour lire les fichiers
-	main_args args={argc, argv};
-	pthread_t lecteur;
-	pthread_create(&lecteur, NULL, &producer, (void *)&args);
 
 
 	//lance les threads consumer pour lire les nombres
@@ -53,10 +28,12 @@ printf("maxthr=%i\n", nthr);
 	}
 
 
-	//rapelle le thread lecteur
-	pthread_join(lecteur, NULL);
+	//lancer la lecture des fichiers pour alimenter le buffer
+	int e=lecture(argc, argv);
+	if(e!=0)
+		return EXIT_FAILURE;
 	
-
+	//la lecture des fichiers est terminée
 	//récupère les listes chainées de chaque thread
 	void * retval [nthr]; //malloc?bof, void?
 	int j;
@@ -163,4 +140,37 @@ int fact(int nbr){
 //Ajoute un facteur à la liste
 	
 	
+}
+
+int getmaxthreads(int argc, char * argv[]){
+	int nthr=0;
+	int a;
+	for(a=1; a<argc-1; a++){
+		if(strcmp(argv[a], "-maxthreads")==0){
+				nthr=atoi(argv[a+1]);//ajouter sécurité?
+		}
+	}
+	return nthr;
+}
+
+void * consumer(void * arg){
+
+}
+
+int lecture(int argc, char * argv[]){
+	int isstdin=0; // vaudra 1 s'il faut lire les arguments passés en standard in
+	int i;
+	for(i=1; i<argc; i++){
+		if(strcmp(argv[i], "-stdin")==0)
+			isstdin=1;
+		else if (strcmp(argv[i],"file")==0){
+			//ouvrir fichier de nom argv[i+1]
+		}
+		else if (strncmp(argv[i],"http://",7)==0){
+			//lire le fichier depuis le reseau
+		}
+	}
+	if(isstdin==1){ //s'il faut lire des nombres de la ligne de commande
+
+	}
 }
