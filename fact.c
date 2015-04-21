@@ -12,17 +12,22 @@
 #define f(x)  (x*x+1)
 #define BSIZE 100 //a faire varier
 
-int getmaxthreads(int argc, char * argv[]);
-void * consumer(void * arg);
-int lecture(int argc, char * argv[]);
-void addtobuffer(uint64_t nombre);
-uint64_t readfrombuffer();
+typedef struct{
+	uint64_t nombre;
+	char * nomfichier;
+} numberandname;
 
-uint64_t buffer [BSIZE];
+int getmaxthreads(int argc, char * argv[]);
+int lecture(int argc, char * argv[]);
+void addtobuffer(numberandname * nan);
+numberandname readfrombuffer();
+
+numberandname buffer[BSIZE];
 int index=0;
 pthread_mutex_t buffermutex;	
 sem_t empty;
 sem_t full;
+
 
 /*
  * Liste chainée de facteurs premiers
@@ -39,14 +44,16 @@ typedef struct primenumber {
 	PrimeNumber* next;
 } PrimeNumber;
 
+int finishedreading=0;//"booléen" qui dit si le thread lecteur a terminé de lire, ce qui permet d'arrêter les threads factorisateurs
+
+
 int main(int argc, char * argv[]){
 	//récupérer le nombre max de threads passé en argument
 	int nthr=getmaxthreads(argc, argv);
-printf("maxthr=%i\n", nthr);
 	if(nthr==0)
 		return EXIT_FAILURE;
 	
-	//initialisation du buffer à partager entre producers et consumers
+	//initialisation des mutex/sémaphores associées au buffer à partager entre producers et consumers
 	pthread_mutex_init( &buffermutex, NULL);	
 	sem_init(&empty, 0, BSIZE);
 	sem_init(&full, 0, 0);
@@ -56,17 +63,16 @@ printf("maxthr=%i\n", nthr);
 	pthread_t threads [nthr];
 	int i;
 	for(i=0; i<nthr; i++){
-		pthread_create(&(threads[i]), NULL, &consumer, NULL); //consumer? argument?
+		pthread_create(&(threads[i]), NULL, NULL, NULL); //consumer? argument?
 	}
 
 
 	//lancer la lecture des fichiers pour alimenter le buffer
 	int e=lecture(argc, argv);
 	if(e!=0)
-		return EXIT_FAILURE;
-	
+		return EXIT_FAILURE;//fermer threads d'abord?
+	finishedreading=1;//la lecture des fichiers est terminée
 
-	//la lecture des fichiers est terminée
 	//récupère les listes chainées de chaque thread
 	void * retval [nthr]; //malloc?bof, void?
 	int j;
@@ -249,7 +255,13 @@ void addprimefactor(uint64_t factor, PrimeNumber **factorlist, char[] filename){
 	
 	
 
-
+/*
+ * getmaxthread
+ * renvoie le nombre max de threads utilisables donnee a partir de la ligne de commande
+ *
+ * argc : argc de main
+ * argv : argv de main
+ */
 int getmaxthreads(int argc, char * argv[]){
 	int nthr=0;
 	int a;
@@ -262,17 +274,20 @@ int getmaxthreads(int argc, char * argv[]){
 }
 
 
-
-
-void * consumer(void * arg){
-
-}
-
+/*
+ * lecture
+ * lis l'ensemble des fichiers, c'est à dire transforme tous les nombres de tous les fichiers en représentation locale
+ * et les dispose dans buffer
+ *
+ * argc : argc de main
+ * argv : argv de main
+ */
 int lecture(int argc, char * argv[]){
 	int isstdin=0; //vaudra 1 s'il faut lire les arguments passés en standard in
 	int descr;
 	int e;
 	uint64_t nombre;
+	numberandname * nan=(numberandname *)malloc(sizeof(numberandname));
 	int i;
 	for(i=1; i<argc; i++){
 		if(strcmp(argv[i], "-stdin")==0)
@@ -289,8 +304,9 @@ int lecture(int argc, char * argv[]){
 					perror("read");
 					return EXIT_FAILURE;
 				}
-				nombre=be64toh(nombre);//nombre transformé en représentation locale
-				addtobuffer(nombre);
+				nan->nombre=be64toh(nombre);//nombre transformé en représentation locale
+				nan->nomfichier=argv[i+1];
+				addtobuffer(nan);
 			}
 			//fermer le fichier
 			if(close(descr)!=0){
@@ -305,27 +321,40 @@ int lecture(int argc, char * argv[]){
 	if(isstdin==1){//s'il faut lire des nombres de la ligne de commande
 
 	}
+	free(nan);
+	nan=NULL;
 }
 
-
-void addtobuffer(uint64_t nombre){
+/*
+ * addtobuffer
+ * rajoute le numberandname passé en argument à buffer en respectant le protocole des producers-consumers
+ *
+ * nan : structure numberandname a ajouter au buffer
+ *
+ */
+void addtobuffer(numberandname * nan){
 	sem_wait(&empty);
 	pthread_mutex_lock(&buffermutex);
-		buffer[index]=nombre;
+		buffer[index]=*nan;
 		index++;
 	pthread_mutex_unlock(&buffermutex);
 	sem_post(&full);	
 }
 
-
-uint64_t readfrombuffer(){
-	uint64_t nombre;
+/*
+ * readfrombuffer
+ * retire et renvoie un numberandname de buffer en respectant le protocole des producers-consumers
+ * renvoie un numberandname avec un nombre=0 si le buffer est vide est la lecture de tous les fichiers est terminée
+ * 
+ */
+numberandname readfrombuffer(){
+	numberandname nan;
 	sem_wait(&full);
 	pthread_mutex_lock(&buffermutex);
-		nombre=buffer[index];
+		nan=buffer[index];
 		index--;
 	pthread_mutex_unlock(&buffermutex);
 	sem_post(&empty);
-	return nombre;
+	return nan;
 }
 
