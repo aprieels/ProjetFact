@@ -24,6 +24,20 @@ pthread_mutex_t buffermutex;
 sem_t empty;
 sem_t full;
 
+/*
+ * Liste chainée de facteurs premiers
+ *
+ * @nbr : Facteur premier
+ * @multpiple : 0 si le facteur n'apparait qu'une seule fois
+ * @file : nom du premier fichier dans lequel apparait le facteur premier
+ * @next : nombre premier suivant dans la liste chainée
+ */
+typedef struct primenumber {
+	uint64_t nbr; 
+	int multiple; 
+	char[] file;
+	PrimeNumber* next;
+} PrimeNumber;
 
 int main(int argc, char * argv[]){
 	//récupérer le nombre max de threads passé en argument
@@ -68,10 +82,41 @@ printf("maxthr=%i\n", nthr);
 	
 
 
+/*
+ *
+ *
+ *
+ */
+ void getnumbers(){
+ 	uint64_t number;
+ 	PrimeNumber* factorlist = malloc(sizeof(PrimeNumber*));
+ 	if(factorlist == NULL)
+ 		exit(EXIT_FAILURE);
+ 	while(1) {//Changer la condition par la suite pour que la boucle s'arrête lorsque tous les fichiers ont été lus !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ 		number = readfrombuffer();
+ 		decomp(number, &factorlist);
+ 	}
+ }
+
 
 //Décomposition en facteurs premiers d'un nombre
-void decomp(void* nbr){
-		
+void decomp(uint64_t nbr, PrimeNumber **list, char[] filename){
+	
+	int factor = pollard(nbr);
+	if (factor == 0){
+		factor = fact(nbr);
+		if (factor == 0){
+			addprimefactor(nbr, list, filename);
+		}
+		else {
+			decomp(factor);
+			decomp(nbr/factor);
+		}
+	}
+	else {
+		decomp(factor);
+		decomp(nbr/factor);
+	
 }
 
 
@@ -82,18 +127,18 @@ void decomp(void* nbr){
  * Attention : Cette méthode est plus rapide que la méthode naïve mais n'est pas infaillible
  *
  * @nbr : Nombre ddont il faut trouver un facteur
- * @return : Facteur de n trouvé, ou -1 si aucun facteur n'a été trouvé
+ * @return : Facteur de n trouvé, ou 0 si aucun facteur n'a été trouvé
  */
-int pollard(int nbr){
+uint64_t pollard(uint64_t nbr){
 	
 	if(nbr==1)
-		return -1;
+		return 0;
 	
 	int i;	
-	int x = rand() % (nbr+1); //Choisi un nombre aléatoirement entre 0 et n
-	int y = x;
+	uint64_t x = rand() % (nbr+1); //Choisi un nombre aléatoirement entre 0 et n
+	uint64_t y = x;
 	int k = 2;
-	int d = 0;
+	uint64_t d = 0;
 	
 	for(i=0; d != nbr ; i++){ //La condition d!=nbr permet uniquement d'éviter un livelock si le nombre est premier. Si un facteur n'est pas trouvé assez vite, on utilisera la méthode naïve pour vérifier que ce nombre est bien premier
 	
@@ -111,7 +156,7 @@ int pollard(int nbr){
 		
 	}
 	
-	return -1;
+	return 0;
 
 }
 
@@ -123,9 +168,9 @@ int pollard(int nbr){
  * @a et @b : Deux nombres dont il faut calculer le PGCD
  * @return : PGCD des deux nombres
  */
-int gcd(int a, int b){
+uint64_t gcd(uint64_t a, uint64_t b){
 
-    int c;
+    uint64_t c;
     while (b != 0)
     {
         c = a % b;
@@ -141,11 +186,11 @@ int gcd(int a, int b){
  * Cherche un facteur premier d'un nombre donné en utilisant la méthode naïve
  *
  * @nbr : Nombre dont il faut trouver un facteur
- * @return : Premier facteur trouvé, ou -1 si aucun facteur n'a été trouvé (nbr est donc premier)
+ * @return : Premier facteur trouvé, ou 0 si aucun facteur n'a été trouvé (nbr est donc premier)
  */ 
-int fact(int nbr){
+uint64_t fact(uint64_t nbr){
 	
-	int i;
+	uint64_t i;
 	
 	if (nbr % 2 == 0) //Vérifie que 2 n'est pas un facteur
 		return 2;
@@ -157,10 +202,50 @@ int fact(int nbr){
 	
 	} 
 	
-	return -1; //Aucun diviseur n'a été trouvé, nbr est donc premier
+	return 0; //Aucun diviseur n'a été trouvé, nbr est donc premier
 }
 	
 //Ajoute un facteur à la liste
+void addprimefactor(uint64_t factor, PrimeNumber **factorlist, char[] filename){
+	
+	PrimeNumber *newprime;
+			
+	if(*factorlist == NULL){
+	
+		newprime = (PrimeNumber*) malloc(sizeof(PrimeNumber));
+		if(newprime == NULL)
+			exit(EXIT_FAILURE);
+			
+		newprime -> nbr = factor;
+		newprime -> multiple = 0;
+		newprime -> file = filename;
+		newprime -> next = NULL;
+		
+		*factorlist == newprime;
+		
+	}
+	else {
+	
+		PrimeNumber *currentprime = *factorlist;
+		PrimeNumber *nextprime = current -> next;
+		
+		if(factor < (*currentprime).nbr){
+			newprime = (PrimeNumber*) malloc(sizeof(PrimeNumber));
+			if(newprime == NULL)
+				exit(EXIT_FAILURE);
+			newprime -> nbr = factor;
+			newwprime -> multiple = 0;
+			newprime -> file = filename;
+			newprime -> next = *factorlist;
+			*factorlist = newprime;
+		}
+		else {
+			
+			while((*current).nbr)
+			
+	}
+
+}
 	
 	
 
