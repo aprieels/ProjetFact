@@ -10,7 +10,7 @@
 #include <fcntl.h>
 
 #define f(x)  (x*x+1)
-
+#define BSIZE 100 //a faire varier
 
 int getmaxthreads(int argc, char * argv[]);
 void * consumer(void * arg);
@@ -18,13 +18,11 @@ int lecture(int argc, char * argv[]);
 void addtobuffer(uint64_t nombre);
 uint64_t readfrombuffer();
 
-#define BSIZE 100 //a faire varier
 uint64_t buffer [BSIZE];
 int index=0;
 pthread_mutex_t buffermutex;	
 sem_t empty;
 sem_t full;
-
 
 
 int main(int argc, char * argv[]){
@@ -44,7 +42,7 @@ printf("maxthr=%i\n", nthr);
 	pthread_t threads [nthr];
 	int i;
 	for(i=0; i<nthr; i++){
-		pthread_create(&(threads[i]), NULL, &consumer, NULL); //consumer?
+		pthread_create(&(threads[i]), NULL, &consumer, NULL); //consumer? argument?
 	}
 
 
@@ -63,16 +61,20 @@ printf("maxthr=%i\n", nthr);
 	}
 
 
-//merge les listes chainées
+	//merge les listes chainées
 
-//trouve le résultat, et printf
+	//trouve le résultat, et printf
+}
 	
-	
-	
+
+
+
 //Décomposition en facteurs premiers d'un nombre
 void decomp(void* nbr){
 		
 }
+
+
 	
 /*
  * pollard
@@ -161,7 +163,7 @@ int fact(int nbr){
 //Ajoute un facteur à la liste
 	
 	
-}
+
 
 int getmaxthreads(int argc, char * argv[]){
 	int nthr=0;
@@ -173,6 +175,9 @@ int getmaxthreads(int argc, char * argv[]){
 	}
 	return nthr;
 }
+
+
+
 
 void * consumer(void * arg){
 
@@ -201,7 +206,6 @@ int lecture(int argc, char * argv[]){
 				}
 				nombre=be64toh(nombre);//nombre transformé en représentation locale
 				addtobuffer(nombre);
-
 			}
 			//fermer le fichier
 			if(close(descr)!=0){
@@ -218,6 +222,7 @@ int lecture(int argc, char * argv[]){
 	}
 }
 
+
 void addtobuffer(uint64_t nombre){
 	sem_wait(&empty);
 	pthread_mutex_lock(&buffermutex);
@@ -226,6 +231,7 @@ void addtobuffer(uint64_t nombre){
 	pthread_mutex_unlock(&buffermutex);
 	sem_post(&full);	
 }
+
 
 uint64_t readfrombuffer(){
 	uint64_t nombre;
