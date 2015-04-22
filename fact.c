@@ -31,12 +31,14 @@ sem_t full;
 int finishedreading=0;//"booléen" qui dit si le thread lecteur a terminé de lire, ce qui permet d'arrêter les threads factorisateurs
 
 
+
 int main(int argc, char * argv[]){
 	//récupérer le nombre max de threads passé en argument
 	int nthr=getmaxthreads(argc, argv);
 	if(nthr==0)
 		return EXIT_FAILURE;
 	
+
 	//initialisation des mutex/sémaphores associées au buffer à partager entre producers et consumers
 	pthread_mutex_init( &buffermutex, NULL);	
 	sem_init(&empty, 0, BSIZE);
@@ -56,6 +58,8 @@ int main(int argc, char * argv[]){
 	if(e!=0)
 		return EXIT_FAILURE;//fermer threads d'abord?
 	finishedreading=1;//la lecture des fichiers est terminée
+	sem_post(&full); //pour débloquer les threads consumers
+
 
 	//récupère les listes chainées de chaque thread
 	void * retval [nthr]; //malloc?bof, void?
@@ -209,12 +213,16 @@ int lecture(int argc, char * argv[]){
 			//ouvrir le fichier
 			if((descr=open(argv[i+1], O_RDONLY))<0){
 				perror("open");
+				free(nan);
+				nan=NULL;
 				return EXIT_FAILURE;
 			}
 			//lire le fichier
 			while( (e=read(descr, &nombre, sizeof(uint64_t))) != 0){
 				if(e<0){
 					perror("read");
+					free(nan);
+					nan=NULL;
 					return EXIT_FAILURE;
 				}
 				nan->nombre=be64toh(nombre);//nombre transformé en représentation locale
@@ -224,6 +232,8 @@ int lecture(int argc, char * argv[]){
 			//fermer le fichier
 			if(close(descr)!=0){
 				perror("close");
+				free(nan);
+				nan=NULL;
 				return EXIT_FAILURE;
 			}
 		}
@@ -264,6 +274,14 @@ numberandname readfrombuffer(){
 	numberandname nan;
 	sem_wait(&full);
 	pthread_mutex_lock(&buffermutex);
+		int sval;
+		sem_getvalue(&full, &sval);
+		if(sval==0 && finishedreading==1){ // pas trop sur, très tendu
+			sem_post(&full);
+			nan.nombre=0;
+			nan.nomfichier="xxx";
+			return nan;
+		}
 		nan=buffer[index];
 		index--;
 	pthread_mutex_unlock(&buffermutex);
