@@ -12,22 +12,16 @@
 #define f(x)  (x*x+1)
 #define BSIZE 100 //a faire varier
 
+/*
+ * structure contenant un nombre et le fichier duquel il provient
+ *
+ * @nombre : nombre à factoriser
+ * @nomfichier : nom du fichier d'origine
+ */
 typedef struct{
 	uint64_t nombre;
-	char * nomfichier;
+	char * nomfichier; // transformer en short correspondant à un nom de fichier?
 } numberandname;
-
-int getmaxthreads(int argc, char * argv[]);
-int lecture(int argc, char * argv[]);
-void addtobuffer(numberandname * nan);
-numberandname readfrombuffer();
-
-numberandname buffer[BSIZE];
-int index=0;
-pthread_mutex_t buffermutex;	
-sem_t empty;
-sem_t full;
-
 
 /*
  * Liste chainée de facteurs premiers
@@ -37,12 +31,24 @@ sem_t full;
  * @file : nom du premier fichier dans lequel apparait le facteur premier
  * @next : nombre premier suivant dans la liste chainée
  */
-typedef struct primenumber {
+typedef struct{
 	uint64_t nbr; 
 	int multiple; 
 	char[] file;
 	PrimeNumber* next;
 } PrimeNumber;
+
+
+int getmaxthreads(int argc, char * argv[]);
+int lecture(int argc, char * argv[]);
+void addtobuffer(numberandname * nan);
+numberandname readfrombuffer();
+
+numberandname buffer[BSIZE];
+int index=-1;
+pthread_mutex_t buffermutex;	
+sem_t empty;
+sem_t full;
 
 int finishedreading=0;//"booléen" qui dit si le thread lecteur a terminé de lire, ce qui permet d'arrêter les threads factorisateurs
 
@@ -271,7 +277,7 @@ int getmaxthreads(int argc, char * argv[]){
 	int a;
 	for(a=1; a<argc-1; a++){
 		if(strcmp(argv[a], "-maxthreads")==0){
-				nthr=atoi(argv[a+1]);//ajouter sécurité?
+			nthr=atoi(argv[a+1]);//ajouter sécurité?
 		}
 	}
 	return nthr;
@@ -345,8 +351,8 @@ int lecture(int argc, char * argv[]){
 void addtobuffer(numberandname * nan){
 	sem_wait(&empty);
 	pthread_mutex_lock(&buffermutex);
-		buffer[index]=*nan;
 		index++;
+		buffer[index]=*nan;
 	pthread_mutex_unlock(&buffermutex);
 	sem_post(&full);	
 }
@@ -361,9 +367,7 @@ numberandname readfrombuffer(){
 	numberandname nan;
 	sem_wait(&full);
 	pthread_mutex_lock(&buffermutex);
-		int sval;
-		sem_getvalue(&full, &sval);
-		if(sval==0 && finishedreading==1){ // pas trop sur, très tendu
+		if(index==-1 && finishedreading==1){ // pas trop sur
 			sem_post(&full);
 			nan.nombre=0;
 			nan.nomfichier="xxx";
