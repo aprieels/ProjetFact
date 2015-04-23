@@ -271,17 +271,28 @@ void addprimefactor(uint64_t factor64, PrimeNumber **factorlist, char filename[]
 			*factorlist = newprime;
 		}
 		else{
-			while((*currentprime).nbr < factor && nextprime != NULL){
+			while((*nextprime).nbr < factor && nextprime->next != NULL){
 				currentprime = nextprime;
 				nextprime = nextprime -> next;
 			}
-			if()
-			if(nextprime != NULL){
-				
+			if((*nextprime).nbr == factor){
+				(*nextprime).multiple = 1;
 			}
-			else{
-				
+			else if((*nextprime).nbr > factor) {
+				newprime -> nbr = factor;
+				newprime -> multiple = 0;
+				newprime -> file = filename;
+				newprime -> next = nextprime;
+				currentprime -> next = newprime;
 			}
+			else {
+				newprime -> nbr = factor;
+				newprime -> multiple = 0;
+				newprime -> file = filename;
+				newprime -> next = NULL;
+				nextprime -> next = newprime;
+			}
+		}
 	}
 
 }
