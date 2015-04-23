@@ -427,7 +427,7 @@ numberandname * readfrombuffer(){
 			sem_post(&full);
 			nan=(numberandname *)malloc(sizeof(numberandname));
 			if(nan==NULL){
-				return EXIT_FAILURE; // compléter
+				return NULL; // compléter
 			}
 			nan->nombre=0;
 			nan->nomfichier="x";
@@ -456,7 +456,7 @@ PrimeNumber * merge(int nthr, PrimeNumber * retvals[]){
 	}
 	finallist->nbr=0;
 	finallist->multiple=0;
-	finallist->fichier="x";
+	finallist->file="x";
 	finallist->next=retvals[0];
 	// on prend la liste chainée du premier thread, puis on y rajoute succésivement les listes chainées des autres threads.
 	PrimeNumber * currentnode;
@@ -467,44 +467,28 @@ PrimeNumber * merge(int nthr, PrimeNumber * retvals[]){
 	for(i=1; i<nthr; i++){ 
 		currentnode=finallist;
 		nextnode=currentnode->next;
-		addnode=retval[i];
+		addnode=retvals[i];
 		while(addnode != NULL){
 			if(nextnode==NULL){
 				currentnode->next=addnode;
 				addnode=NULL;
 			}
 			else{
-				if(addnode->nbr =< nextnode->nbr){//s'il faut insérer addnode dans la liste maintenant
+				if(addnode->nbr == nextnode->nbr){//si le nombre a insérer etait déjà dans la liste
+					nextnode->multiple=1;
+					addnode=addnode->next;
+				}
+				else if(addnode->nbr < nextnode->nbr){//s'il faut insérer addnode entre currentnode et nextnode
 					currentnode->next=addnode;
 					nextaddnode=addnode->next;
 					addnode->next=nextnode;
 					nextnode=addnode;
 					addnode=nextaddnode;
 				}
-			currentnode=currentnode->next;
-			nextnode=nextnode->next;
+				currentnode=nextnode;
+				nextnode=nextnode->next;
+			}
 		}			
 	}
 	return finallist;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
