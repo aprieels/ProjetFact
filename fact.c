@@ -33,7 +33,7 @@ typedef struct{
  * @next : nombre premier suivant dans la liste chainée
  */
 typedef struct primenumber{
-	uint64_t nbr; //int!
+	uint32_t nbr; 
 	int multiple; 
 	struct primenumber* next;
 	char file[];
@@ -123,13 +123,14 @@ int main(int argc, char * argv[]){
  *
  */
  void getnumbers(){
- 	uint64_t number;
+ 	numberandname nan;
  	PrimeNumber* factorlist = malloc(sizeof(PrimeNumber*));
  	if(factorlist == NULL)
  		exit(EXIT_FAILURE);
- 	while(1) {//Changer la condition par la suite pour que la boucle s'arrête lorsque tous les fichiers ont été lus !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- 		number = readfrombuffer();
- 		decomp(number, &factorlist);
+ 	nan = readfrombuffer();
+ 	while(nan.nombre!=0) {
+ 		decomp(nan.nombre, &factorlist, nan.nomfichier);
+ 		nan = readfrombuffer();
  	}
  }
 
@@ -137,7 +138,7 @@ int main(int argc, char * argv[]){
 //Décomposition en facteurs premiers d'un nombre
 void decomp(uint64_t nbr, PrimeNumber **list, char filename[]){
 	
-	int factor = pollard(nbr);
+	uint64_t factor = pollard(nbr);
 	if (factor == 0){
 		factor = fact(nbr);
 		if (factor == 0){
@@ -240,10 +241,19 @@ uint64_t fact(uint64_t nbr){
 	return 0; //Aucun diviseur n'a été trouvé, nbr est donc premier
 }
 	
-//Ajoute un facteur à la liste
-void addprimefactor(uint64_t factor, PrimeNumber **factorlist, char filename[]){
+/*
+ * addprimefactor
+ * Ajoute un facteur premier à la liste chainée triée contenant les facteurs
+ * Si ce facteur ce trouve déja dans la liste, il change la variable "multiple" de la structure contenant le facteur
+ *
+ * @factor64 : Facteur premier à ajouter à la liste sous la forme uint64_t
+ * @factorlist : Pointeur vers les pointeur du premier élément de la liste
+ * @filename : fichier duquel le facteur premier est tiré
+ */
+void addprimefactor(uint64_t factor64, PrimeNumber **factorlist, char filename[]){
 	
 	PrimeNumber *newprime;
+	uint32_t factor = factor64 & 0xFFFFFFFF; //Transforme le facteur, qui est initialement stocké sur 64 bits en format uint32_t
 			
 	if(*factorlist == NULL){
 	
@@ -274,10 +284,18 @@ void addprimefactor(uint64_t factor, PrimeNumber **factorlist, char filename[]){
 			newprime -> next = *factorlist;
 			*factorlist = newprime;
 		}
-		else {
-			
-			while((*current).nbr)
-			
+		else{
+			while((*currentprime).nbr < factor && nextprime != NULL){
+				currentprime = nextprime;
+				nextprime = nextprime -> next;
+			}
+			if()
+			if(nextprime != NULL){
+				
+			}
+			else{
+				
+			}
 	}
 
 }
