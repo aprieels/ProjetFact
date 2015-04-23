@@ -463,8 +463,9 @@ PrimeNumber * merge(int nthr, PrimeNumber * retvals[]){
 					nextnode=addnode;
 					addnode=nextaddnode;
 				}
-			currentnode=currentnode->next;
-			nextnode=nextnode->next;
+				currentnode=currentnode->next;
+				nextnode=nextnode->next;
+			}
 		}			
 	}
 	return finallist;
