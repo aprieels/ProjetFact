@@ -31,11 +31,11 @@ typedef struct{
  * @file : nom du premier fichier dans lequel apparait le facteur premier
  * @next : nombre premier suivant dans la liste chainée
  */
-typedef struct{
+typedef struct primenumber{
 	uint64_t nbr; //int!
 	int multiple; 
-	char[] file;
-	PrimeNumber* next;
+	struct primenumber* next;
+	char file[];
 } PrimeNumber;
 
 
@@ -43,7 +43,7 @@ int getmaxthreads(int argc, char * argv[]);
 int lecture(int argc, char * argv[]);
 void addtobuffer(numberandname * nan);
 numberandname * readfrombuffer();
-//PrimeNumber * merge(PrimeNumber * retvals[]);
+PrimeNumber * merge(int nthr, PrimeNumber * retvals[]);
 
 numberandname * buffer[BSIZE];
 int index=-1; //index du prochain nombre du buffer a factoriser
@@ -95,7 +95,7 @@ int main(int argc, char * argv[]){
 
 
 	//merge les listes chainées
-	//PrimeNumber * finallist = merge(retvals);	
+	//PrimeNumber * finallist = merge(nthr, retvals);	
 	
 
 	//trouve le résultat, et printf
@@ -121,7 +121,7 @@ int main(int argc, char * argv[]){
 
 
 //Décomposition en facteurs premiers d'un nombre
-void decomp(uint64_t nbr, PrimeNumber **list, char[] filename){
+void decomp(uint64_t nbr, PrimeNumber **list, char filename[]){
 	
 	int factor = pollard(nbr);
 	if (factor == 0){
@@ -227,7 +227,7 @@ uint64_t fact(uint64_t nbr){
 }
 	
 //Ajoute un facteur à la liste
-void addprimefactor(uint64_t factor, PrimeNumber **factorlist, char[] filename){
+void addprimefactor(uint64_t factor, PrimeNumber **factorlist, char filename[]){
 	
 	PrimeNumber *newprime;
 			
@@ -422,6 +422,70 @@ numberandname * readfrombuffer(){
 	sem_post(&empty);
 	return nan;
 }
+
+/*
+ * merge
+ * merge les listes chainées ordonnées de chaque thread en une seule liste chainée ordonnée
+ * renvoie un pointeur vers le premier élement de la liste chainée finale
+ * 
+ * retvals[] : liste des premiers élements des listes chainées associées à chaque thread
+ * nthr : nombre de threads utilisés pour la factorisation, taille de retvals
+ */
+PrimeNumber * merge(int nthr, PrimeNumber * retvals[]){
+	PrimeNumber * finallist=(PrimeNumber *)malloc(sizeof(PrimeNumber));
+	if(finallist==NULL){
+		return NULL;
+	}
+	finallist->nbr=0;
+	finallist->multiple=0;
+	finallist->fichier="x";
+	finallist->next=retvals[0];
+	// on prend la liste chainée du premier thread, puis on y rajoute succésivement les listes chainées des autres threads.
+	PrimeNumber * currentnode;
+	PrimeNumber * nextnode;
+	PrimeNumber * addnode;
+	PrimeNumber * nextaddnode;
+	int i;
+	for(i=1; i<nthr; i++){ 
+		currentnode=finallist;
+		nextnode=currentnode->next;
+		addnode=retval[i];
+		while(addnode != NULL){
+			if(nextnode==NULL){
+				currentnode->next=addnode;
+				addnode=NULL;
+			}
+			else{
+				if(addnode->nbr =< nextnode->nbr){//s'il faut insérer addnode dans la liste maintenant
+					currentnode->next=addnode;
+					nextaddnode=addnode->next;
+					addnode->next=nextnode;
+					nextnode=addnode;
+					addnode=nextaddnode;
+				}
+			currentnode=currentnode->next;
+			nextnode=nextnode->next;
+		}			
+	}
+	return finallist;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
