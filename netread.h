@@ -5,7 +5,6 @@
 #endif
 #include <stdlib.h>
 #include <errno.h>
- 
 #include <curl/curl.h>
 
 typedef struct fcurl_data URL_FILE;
