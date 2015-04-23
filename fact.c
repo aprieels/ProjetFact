@@ -7,10 +7,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/time.h>
 #include "netread.h"
 
 #define f(x)  (x*x+1)
-#define BSIZE 100 //a faire varier
+#define BSIZE 1000 //a faire varier
 
 /*
  * structure contenant un nombre et le fichier duquel il provient
@@ -44,6 +45,7 @@ int lecture(int argc, char * argv[]);
 void addtobuffer(numberandname * nan);
 numberandname * readfrombuffer();
 PrimeNumber * merge(int nthr, PrimeNumber * retvals[]);
+PrimeNumber * findsolution(PrimeNumber* finallist);
 
 numberandname * buffer[BSIZE];
 int index=-1; //index du prochain nombre du buffer a factoriser
@@ -57,6 +59,9 @@ int finishedreading=0;
 
 
 int main(int argc, char * argv[]){
+	struct timeval * tv1;
+	struct timeval * tv2;
+	gettimeofday(tv1, NULL);
 	//récupérer le nombre max de threads passé en argument
 	int nthr=getmaxthreads(argc, argv);
 	if(nthr==0)
@@ -86,7 +91,7 @@ int main(int argc, char * argv[]){
 
 
 	//récupère les listes chainées de chaque thread
-	PrimeNumber * retvals [nthr]; //malloc?! void?
+	PrimeNumber * retvals [nthr]; 
 	int j;
 	for(j=0; j<nthr; j++){
 		//retval[j]=(void *)malloc(sizeof(listefacteurspremiers));
@@ -95,10 +100,19 @@ int main(int argc, char * argv[]){
 
 
 	//merge les listes chainées
-	//PrimeNumber * finallist = merge(nthr, retvals);	
+	PrimeNumber * finallist = merge(nthr, retvals);	
 	
 
 	//trouve le résultat, et printf
+	PrimeNumber * solution = findsolution(finallist);
+	if(solution->nbr==0){
+		perror("no solution found");
+		return EXIT_FAILURE;
+	}
+	gettimeofday(tv2, NULL);
+	printf("%i\n", solution->nbr);
+	printf("%s\n", solution->file);
+	printf("%i.%i\n", tv2->tv_sec - tv1->tv_sec, tv2->tv_usec - tv1->tv_usec);
 }
 	
 
@@ -485,7 +499,7 @@ PrimeNumber * merge(int nthr, PrimeNumber * retvals[]){
 				addnode=NULL;
 			}
 			else{
-				if(addnode->nbr == nextnode->nbr){//si le nombre a insérer etait déjà dans la liste
+				if(addnode->nbr == nextnode->nbr){//si le nombre a insérer est déjà dans la liste principale
 					nextnode->multiple=1;
 					addnode=addnode->next;
 				}
@@ -502,4 +516,21 @@ PrimeNumber * merge(int nthr, PrimeNumber * retvals[]){
 		}			
 	}
 	return finallist;
+}
+
+/*
+ * findsolution
+ * trouve le plus grand facteur premier unique présent dans une liste chainée ordonnée dans l'ordre croissant
+ * 
+ * finallist : liste chainée finale contenant tous les facteurs premiers trouvé dans les fichiers
+ */
+PrimeNumber * findsolution(PrimeNumber* finallist){
+	PrimeNumber * solution=finallist;//parce qu'on sait que le premier élément de finalist est 0
+	while(finallist!=NULL){
+		if(finallist->multiple==0){
+			solution=finallist;
+		}
+		finallist=finallist->next;
+	}
+	return solution;
 }
