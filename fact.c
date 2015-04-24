@@ -48,6 +48,14 @@ numberandname * readfrombuffer();
 PrimeNumber * merge(int nthr, PrimeNumber * retvals[]);
 PrimeNumber * findsolution(PrimeNumber* finallist);
 
+uint64_t pollard(uint64_t);
+void addprimefactor(uint64_t, PrimeNumber*, char*);
+void getnumbers();
+void decomp(uint64_t, PrimeNumber*, char*);
+uint64_t pollard(uint64_t);
+uint64_t fact(uint64_t);
+uint64_t gcd(uint64_t, uint64_t);
+
 numberandname * buffer[BSIZE];
 int index=-1; //index du prochain nombre du buffer a factoriser
 pthread_mutex_t buffermutex;	
@@ -147,37 +155,45 @@ int main(int argc, char * argv[]){
  *
  *
  */
- void getnumbers(){
- 	numberandname nan;
+void getnumbers(){
+ 	numberandname* nan;
  	PrimeNumber* factorlist = malloc(sizeof(PrimeNumber*));
  	if(factorlist == NULL)
  		exit(EXIT_FAILURE);
  	nan = readfrombuffer();
- 	while(nan.nombre!=0) {
- 		decomp(nan.nombre, &factorlist, nan.nomfichier);
+ 	while((*nan).nombre!=0) {
+ 	 	printf("%p\n", &factorlist);
+ 		decomp((*nan).nombre, factorlist, (*nan).nomfichier);
  		nan = readfrombuffer();
  	}
- }
+}
 
 
-//Décomposition en facteurs premiers d'un nombre
-void decomp(uint64_t nbr, PrimeNumber **list, char filename[]){
-	
+/*
+ * Décomposition en facteurs premiers d'un nombre
+ *
+ * @nbr : Nombre à factoriser
+ * @list : Liste chainée de PrimeNumber à laquelle il faut ajouter les facteurs premiers trouvés
+ * @filename : Nom du fichier dans lequel nbr apparait, cela permet d'afficher le nom du fichier lorsque le facteur premier n'apparaissant qu'une fois a été trouvé
+ */
+void decomp(uint64_t nbr, PrimeNumber* list, char* filename){
+
 	uint64_t factor = pollard(nbr);
-	if (factor == 0){
+	if (factor == 0){ //La méthode de pollard n'étant pas infaillible, si aucun facteur n'a été trouvé, on vérifiera que le nombre est bien premier en utilisant la méthode naïve
+	
 		factor = fact(nbr);
-		if (factor == 0){
-			addprimefactor(nbr, list, filename);
-		}
+		
+		if (factor == 0) //Si la méthode naïve ne trouve pas non plus de facteur, le nombre est donc bien premier...
+			addprimefactor(nbr, list, filename); //... et peut être ajouté à la liste
 		else {
-			decomp(factor);
-			decomp(nbr/factor);
+			decomp(factor, list, filename); //Si un diviseur est trouvé, on fait un appel récursif sur ce diviseur et le résultat de la division
+			decomp(nbr/factor, list, filename);
 		}
 	}
 	else {
-		decomp(factor);
-		decomp(nbr/factor);
-	
+		decomp(factor, list, filename);
+		decomp(nbr/factor, list, filename);
+	}
 }
 
 
@@ -187,11 +203,10 @@ void decomp(uint64_t nbr, PrimeNumber **list, char filename[]){
  * Cherche un facteur d'un nombre donné en utilisant la méthode Rho de Pollard
  * Attention : Cette méthode est plus rapide que la méthode naïve mais n'est pas infaillible
  *
- * @nbr : Nombre ddont il faut trouver un facteur
+ * @nbr : Nombre dont il faut trouver un facteur
  * @return : Facteur de n trouvé, ou 0 si aucun facteur n'a été trouvé
  */
 uint64_t pollard(uint64_t nbr){
-	
 	if(nbr==1)
 		return 0;
 	
@@ -201,7 +216,7 @@ uint64_t pollard(uint64_t nbr){
 	int k = 2;
 	uint64_t d = 0;
 	
-	for(i=0; d != nbr ; i++){ //La condition d!=nbr permet uniquement d'éviter un livelock si le nombre est premier. Si un facteur n'est pas trouvé assez vite, on utilisera la méthode naïve pour vérifier que ce nombre est bien premier
+	for(i=0; d != nbr ; i++){ //La condition d!=nbr est arbitraire et permet uniquement d'éviter un livelock si le nombre est premier ou si aucun facteur n'est trouvé. Si un facteur n'est pas trouvé assez vite, on utilisera la méthode naïve pour vérifier que ce nombre est bien premier.
 	
 		x = f(x) % nbr;
 		d = gcd(abs(y-x), nbr);
@@ -250,13 +265,15 @@ uint64_t gcd(uint64_t a, uint64_t b){
  * @return : Premier facteur trouvé, ou 0 si aucun facteur n'a été trouvé (nbr est donc premier)
  */ 
 uint64_t fact(uint64_t nbr){
-	
 	uint64_t i;
+	
+	if(nbr == 2)
+		return 0;
 	
 	if (nbr % 2 == 0) //Vérifie que 2 n'est pas un facteur
 		return 2;
 	
-	for(i=3; i <= nbr; i=i+2){ //Ne teste pas les nombres pairs car, puisque 2 n'est pas un facteur, ces multiples ne peuvent pas non plus en être
+	for(i=3; i < nbr; i=i+2){ //Ne teste pas les nombres pairs car, puisque 2 n'est pas un facteur, ces multiples ne peuvent pas non plus en être
 	
 		if (nbr % i == 0)
 			return i; //Retourne i si c'est un diviseur de nbr
@@ -265,7 +282,7 @@ uint64_t fact(uint64_t nbr){
 	
 	return 0; //Aucun diviseur n'a été trouvé, nbr est donc premier
 }
-	
+
 /*
  * addprimefactor
  * Ajoute un facteur premier à la liste chainée triée contenant les facteurs
@@ -275,67 +292,66 @@ uint64_t fact(uint64_t nbr){
  * @factorlist : Pointeur vers les pointeur du premier élément de la liste
  * @filename : fichier duquel le facteur premier est tiré
  */
-void addprimefactor(uint64_t factor64, PrimeNumber **factorlist, char filename[]){
-	
-	PrimeNumber *newprime;
+void addprimefactor(uint64_t factor64, PrimeNumber* factorlist, char* filename){
+
 	uint32_t factor = factor64 & 0xFFFFFFFF; //Transforme le facteur, qui est initialement stocké sur 64 bits en format uint32_t
-			
-	if(*factorlist == NULL){
 	
-		newprime = (PrimeNumber*) malloc(sizeof(PrimeNumber));
-		if(newprime == NULL)
-			exit(EXIT_FAILURE);
-			
-		newprime -> nbr = factor;
-		newprime -> multiple = 0;
-		newprime -> file = filename;
-		newprime -> next = NULL;
-		
-		*factorlist == newprime;
-		
+	if((*factorlist).nbr == 0){ //Cas où la liste est vide
+	
+		(*factorlist).nbr = factor;
+		(*factorlist).multiple = 0;
+		(*factorlist).file = filename;
+		(*factorlist).next = NULL;
+				
 	}
-	else {
-	
-		PrimeNumber *currentprime = *factorlist;
-		PrimeNumber *nextprime = current -> next;
+	else { //La liste contient au moins un élément
+		PrimeNumber *previousprime;
+		PrimeNumber *currentprime = factorlist;
 		
-		if(factor < (*currentprime).nbr){
-			newprime = (PrimeNumber*) malloc(sizeof(PrimeNumber));
+		if(factor < (*currentprime).nbr){ //Le nombre premier doit être ajouté en tête de liste
+			PrimeNumber* newprime = (PrimeNumber*) malloc(sizeof(PrimeNumber));
 			if(newprime == NULL)
 				exit(EXIT_FAILURE);
-			newprime -> nbr = factor;
-			newwprime -> multiple = 0;
-			newprime -> file = filename;
-			newprime -> next = *factorlist;
-			*factorlist = newprime;
+			(*newprime).nbr = factor;
+			(*newprime).multiple = 0;
+			(*newprime).file = filename;
+			newprime -> next = factorlist;
+			factorlist = newprime;
+			
 		}
 		else{
-			while((*nextprime).nbr < factor && nextprime->next != NULL){
-				currentprime = nextprime;
-				nextprime = nextprime -> next;
+		
+			while((*currentprime).nbr < factor && currentprime -> next != NULL){ //On parcourt la liste jusqu'à trouver l'emplacement ou la nombre doit être ajouté
+				previousprime = currentprime;
+				currentprime = currentprime -> next;
 			}
-			if((*nextprime).nbr == factor){
-				(*nextprime).multiple = 1;
+			if((*currentprime).nbr == factor){
+				(*currentprime).multiple = 1; //Si le nombre se trouve déja dans la liste, on modifie simplement sa variable "multiple" pour indiquer qu'il apparait plus d'une fois 
 			}
-			else if((*nextprime).nbr > factor) {
-				newprime -> nbr = factor;
-				newprime -> multiple = 0;
-				newprime -> file = filename;
-				newprime -> next = nextprime;
-				currentprime -> next = newprime;
+			else if((*currentprime).nbr > factor) {
+				PrimeNumber* newprime = (PrimeNumber*) malloc(sizeof(PrimeNumber));
+				if(newprime == NULL)
+					exit(EXIT_FAILURE);
+				(*newprime).nbr = factor;
+				(*newprime).multiple = 0;
+				(*newprime).file = filename;
+				newprime -> next = currentprime;
+				previousprime -> next = newprime;
 			}
 			else {
-				newprime -> nbr = factor;
-				newprime -> multiple = 0;
-				newprime -> file = filename;
+				PrimeNumber* newprime = (PrimeNumber*) malloc(sizeof(PrimeNumber));
+				if(newprime == NULL)
+					exit(EXIT_FAILURE);
+				(*newprime).nbr = factor;
+				(*newprime).multiple = 0;
+				(*newprime).file = filename;
 				newprime -> next = NULL;
-				nextprime -> next = newprime;
+				currentprime -> next = newprime;
 			}
 		}
 	}
 
 }
-	
 	
 
 /*
