@@ -39,15 +39,6 @@ typedef struct primenumber{
 	char file[];
 } PrimeNumber;
 
-
-int getmaxthreads(int argc, char * argv[]);
-int filescount (int argc, char * argv[]);
-int lecture(int argc, char * argv[]);
-void addtobuffer(numberandname * nan);
-numberandname * readfrombuffer();
-PrimeNumber * merge(int nthr, PrimeNumber * retvals[]);
-PrimeNumber * findsolution(PrimeNumber* finallist);
-
 uint64_t pollard(uint64_t);
 void addprimefactor(uint64_t, PrimeNumber*, char*);
 void getnumbers();
@@ -55,6 +46,16 @@ void decomp(uint64_t, PrimeNumber*, char*);
 uint64_t pollard(uint64_t);
 uint64_t fact(uint64_t);
 uint64_t gcd(uint64_t, uint64_t);
+
+int getmaxthreads(int argc, char * argv[]);
+int filescount (int argc, char * argv[]);
+void * lecturefichier(void * filename);
+void * lectureURL(void * urlname);
+void * lecturestdin(void * arg);
+void addtobuffer(numberandname * nan);
+numberandname * readfrombuffer();
+PrimeNumber * merge(int nthr, PrimeNumber * retvals[]);
+PrimeNumber * findsolution(PrimeNumber* finallist);
 
 numberandname * buffer[BSIZE];
 int index=-1; //index du prochain nombre du buffer a factoriser
@@ -73,8 +74,8 @@ int main(int argc, char * argv[]){
 	gettimeofday(&tv1, NULL);
 
 	//récupérer le nombre max de threads passé en argument
-	int nthr=getmaxthreads(argc, argv);
-	if(nthr==0)
+	int consnumber=getmaxthreads(argc, argv);
+	if(consnumber==0)
 		return EXIT_FAILURE;
 	
 
@@ -88,37 +89,32 @@ int main(int argc, char * argv[]){
 
 	//lancer la lecture des fichiers pour alimenter le buffer
 	pthread_t threadsprod[prodnumber];
-	int a;
-	for(a=0; a<prodnumber; a++){
+	int a=0;
+	int i;
+	for(i=0; i<argc; i++){
+		if(strcmp(argv[i], "-stdin")==0){
+			pthread_create(&(threadsprod[a]), NULL, &lecturestdin, NULL);
+			a++;
+		}			
+		else if (strcmp(argv[i],"file")==0){
+			pthread_create(&(threadsprod[a]), NULL, &lecturefichier, (void *)argv[i+1]); 
 
-
-
-		pthread_create(&(threadsprod[a]), NULL, &lecture, NULL); 
-
-
+		}
+		else if (strncmp(argv[i],"http://",7)==0){
+			pthread_create(&(threadsprod[a]), NULL, &lectureurl, (void *)argv[i]); 
+		}
 	}
 
 	//lancer les threads consumer pour factoriser les nombres
 	pthread_t threadscons [nthr];
-	int i;
-	for(i=0; i<nthr; i++){
+	for(i=0; i<consnumber; i++){
 		pthread_create(&(threadscons[i]), NULL, NULL, NULL); //consumer? argument?
 	}
 
 	//on récuppère les threads producteurs
-	int b;
-	for(b=0; b<nthr; b++){
-		pthread_join(threadsprod[b], NULL); // NULL pr la valeur de retour?
+	for(i=0; i<prodnumber; i++){
+		pthread_join(threadsprod[i], NULL); // NULL pr la valeur de retour?
 	}
-
-/*
-	//lancer la lecture des fichiers pour alimenter le buffer
-	int e=lecture(argc, argv);
-	if(e!=0)
-		return EXIT_FAILURE;//fermer threads d'abord?
-
-*/
-
 
 	finishedreading=1;//la lecture des fichiers est terminée
 	sem_post(&full);//pour débloquer les threads consumers (similaire à problème du rdv)
@@ -126,8 +122,7 @@ int main(int argc, char * argv[]){
 
 	//récupère les listes chainées de chaque thread
 	PrimeNumber * retvals [nthr]; 
-	int j;
-	for(j=0; j<nthr; j++){
+	for(i=0; i<nthr; i++){
 		pthread_join(threadscons[i], (void **)&(retvals[i]));
 	}
 
@@ -142,6 +137,12 @@ int main(int argc, char * argv[]){
 		perror("no solution found");
 		return EXIT_FAILURE;
 	}
+
+
+	//free finallist
+
+
+	//temps écoulé
 	gettimeofday(&tv2, NULL);
 	printf("%i\n", solution->nbr);
 	printf("%s\n", solution->file);
@@ -388,94 +389,108 @@ int filescount (int argc, char * argv[]){
 	return files;
 }
 
-
 /*
- * lecture
- * lis l'ensemble des fichiers, c'est à dire transforme tous les nombres de tous les fichiers en représentation locale
- * et les dispose dans buffer
+ * lecturefichier
+ * lit un fichier dont le nom est spécifié par filename c, et place les nombres provenant de ce fichier dans le buffer
  *
- * argc : argc de main
- * argv : argv de main
+ * filename : nom du fichier à lire
  */
-int lecture(int argc, char * argv[]){
-	int isstdin=0; //vaudra 1 s'il faut lire les arguments passés en standard in
+void * lecturefichier(void * filename){
+	char * nomfichier = (char *) filename;
 	int descr;
 	int e;
 	uint64_t nombre;
 	numberandname * nan;
-	int i;
-	for(i=1; i<argc; i++){
-		if(strcmp(argv[i], "-stdin")==0)
-			isstdin=1;
-		else if (strcmp(argv[i],"file")==0){
-			//ouvrir le fichier
-			if((descr=open(argv[i+1], O_RDONLY))<0){
-				perror("open");
-				return EXIT_FAILURE;
-			}
-			//lire le fichier
-			while( (e=read(descr, &nombre, sizeof(uint64_t))) != 0){
-				if(e<0){
-					perror("read");
-					return EXIT_FAILURE;
-				}
-				nan=(numberandname *)malloc(sizeof(numberandname));
-				if(nan==NULL){
-					return EXIT_FAILURE; // compléter
-				}
-				nan->nombre=be64toh(nombre);//nombre transformé en représentation locale
-				nan->nomfichier=argv[i+1];
-				addtobuffer(nan);
-			}
-			//fermer le fichier
-			if(close(descr)!=0){
-				perror("close");
-				return EXIT_FAILURE;
-			}
-		}
-		else if (strncmp(argv[i],"http://",7)==0){
-			//ouvrir le fichier depuis le reseau
-			const char * mode="r";
-			URL_FILE *url =url_fopen(argv[i],mode);
-			if(url==NULL){
-				perror("openurl");
-				return EXIT_FAILURE;
-			}
-			//lire le fichier depuis le reseau
-			while(url_feof(url)==0){//tant que le fichier n'est pas terminé
-				if((int)url_fread(&nombre, sizeof(uint64_t), 1, url)==0){
-					perror("readurl");
-					return EXIT_FAILURE;
-				}
-				nan=(numberandname *)malloc(sizeof(numberandname));
-				if(nan==NULL){
-					return EXIT_FAILURE; // compléter
-				}
-				nan->nombre=be64toh(nombre);
-				nan->nomfichier=argv[i+1];
-				addtobuffer(nan);
-			}
-			//fermer le fichier
-			if(url_fclose(url)!=0){
-				perror("closeurl");
-				return EXIT_FAILURE;
-			}
-		}
+	//ouvrir le fichier
+	if((descr=open(filename, O_RDONLY))<0){
+		perror("open");
+		return EXIT_FAILURE;
 	}
-	if(isstdin==1){//s'il faut lire des nombres de la ligne de commande
-		while( (e=read(0, &nombre, sizeof(uint64_t))) != 0){
-			if(e<0){
-				perror("readstdin");
-				return EXIT_FAILURE;
-			}
-			nan=(numberandname *)malloc(sizeof(numberandname));
-			if(nan==NULL){
-				return EXIT_FAILURE; // compléter
-			}
-			nan->nombre=be64toh(nombre);//nombre transformé en représentation locale
-			nan->nomfichier=argv[i+1];
-			addtobuffer(nan);
+	//lire le fichier
+	while( (e=read(descr, &nombre, sizeof(uint64_t))) != 0){
+		if(e<0){
+			perror("read");
+			return EXIT_FAILURE;
 		}
+		nan=(numberandname *)malloc(sizeof(numberandname));
+		if(nan==NULL){
+			return EXIT_FAILURE; // compléter
+		}
+		nan->nombre=be64toh(nombre);//nombre transformé en représentation locale
+		nan->nomfichier=filename;
+		addtobuffer(nan);
+	}
+	//fermer le fichier
+	if(close(descr)!=0){
+		perror("close");
+		return EXIT_FAILURE;
+	}
+}
+
+/*
+ * lectureurl
+ * lit un fichier url dont l'adresse est spécifiée par urlname, et place les nombres provenant de ce fichier dans le buffer
+ *
+ * urlname : nom du fichier URL à lire
+ */
+void * lectureURL(void * urlname){
+	char * nomurl=(char * urlname);
+	int descr;
+	int e;
+	uint64_t nombre;
+	numberandname * nan;
+	//ouvrir le fichier depuis le reseau
+	const char * mode="r";
+	URL_FILE *url =url_fopen(nomurl,mode);
+	if(url==NULL){
+		perror("openurl");
+		return EXIT_FAILURE;
+	}
+	//lire le fichier depuis le reseau
+	while(url_feof(url)==0){//tant que le fichier n'est pas terminé
+		if((int)url_fread(&nombre, sizeof(uint64_t), 1, url)==0){
+			perror("readurl");
+			return EXIT_FAILURE;
+		}
+		nan=(numberandname *)malloc(sizeof(numberandname));
+		if(nan==NULL){
+			return EXIT_FAILURE; // compléter
+		}
+		nan->nombre=be64toh(nombre);
+		nan->nomfichier=nomurl;
+		addtobuffer(nan);
+	}
+	//fermer le fichier
+	if(url_fclose(url)!=0){
+		perror("closeurl");
+		return EXIT_FAILURE;
+	}
+}
+
+
+/*
+ * lecturestdin
+ * lit l'entrée standard et place les nombres provenant de l'entrée standard dans le buffer
+ *
+ * arg : inutilisé (==NULL)
+ */
+void * lecturestdin(void * arg){
+	int descr;
+	int e;
+	uint64_t nombre;
+	numberandname * nan;
+	while( (e=read(0, &nombre, sizeof(uint64_t))) != 0){
+		if(e<0){
+			perror("readstdin");				
+			return EXIT_FAILURE;
+		}
+		nan=(numberandname *)malloc(sizeof(numberandname));
+		if(nan==NULL){
+			return EXIT_FAILURE; // compléter
+		}
+		nan->nombre=be64toh(nombre);//nombre transformé en représentation locale
+		nan->nomfichier=argv[i+1];
+		addtobuffer(nan);
 	}
 }
 
@@ -558,7 +573,10 @@ PrimeNumber * merge(int nthr, PrimeNumber * retvals[]){
 			else{
 				if(addnode->nbr == nextnode->nbr){//si le nombre a insérer est déjà dans la liste principale
 					nextnode->multiple=1;
-					addnode=addnode->next;
+					nextaddnode=addnode->next;
+					free(addnode);
+					addnode=NULL;
+					addnode=nextaddnode;
 				}
 				else if(addnode->nbr < nextnode->nbr){//s'il faut insérer addnode entre currentnode et nextnode
 					currentnode->next=addnode;
