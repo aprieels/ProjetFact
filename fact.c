@@ -36,7 +36,7 @@ typedef struct primenumber{
 	uint32_t nbr; 
 	int multiple; 
 	struct primenumber* next;
-	char file[];
+	char * file;
 } PrimeNumber;
 
 uint64_t pollard(uint64_t);
@@ -55,10 +55,11 @@ void * lecturestdin(void * arg);
 void addtobuffer(numberandname * nan);
 numberandname * readfrombuffer();
 PrimeNumber * merge(int nthr, PrimeNumber * retvals[]);
-PrimeNumber * findsolution(PrimeNumber* finallist);
+PrimeNumber * findsolution(PrimeNumber * finallist);
+void freelinkedlist(PrimeNumber * finallist);
 
 numberandname * buffer[BSIZE];
-int index=-1; //index du prochain nombre du buffer a factoriser
+int ind=-1; //index du prochain nombre du buffer a factoriser
 pthread_mutex_t buffermutex;	
 sem_t empty;
 sem_t full;
@@ -140,7 +141,7 @@ int main(int argc, char * argv[]){
 
 
 	//free finallist
-
+	freelinkedlist(finallist);
 
 	//temps écoulé
 	gettimeofday(&tv2, NULL);
@@ -382,6 +383,7 @@ int getmaxthreads(int argc, char * argv[]){
  */
 int filescount (int argc, char * argv[]){
 	int files=0;
+	int i;
 	for(i=1; i<argc; i++){
 		if(strcmp(argv[i], "-stdin")==0 || strcmp(argv[i],"file")==0 || strncmp(argv[i],"http://",7)==0)
 			files++;
@@ -504,8 +506,8 @@ void * lecturestdin(void * arg){
 void addtobuffer(numberandname * nan){
 	sem_wait(&empty);
 	pthread_mutex_lock(&buffermutex);
-		index++;
-		buffer[index]=nan;
+		ind++;
+		buffer[ind]=nan;
 	pthread_mutex_unlock(&buffermutex);
 	sem_post(&full);	
 }
@@ -520,7 +522,7 @@ numberandname * readfrombuffer(){
 	numberandname * nan;
 	sem_wait(&full);
 	pthread_mutex_lock(&buffermutex);
-		if(index==-1 && finishedreading==1){ // pas tt à fait sur
+		if(ind==-1 && finishedreading==1){ // pas tt à fait sur
 			sem_post(&full);
 			nan=(numberandname *)malloc(sizeof(numberandname));
 			if(nan==NULL){
@@ -530,8 +532,8 @@ numberandname * readfrombuffer(){
 			nan->nomfichier="x";
 		}
 		else{
-			nan=buffer[index];
-			index--;
+			nan=buffer[ind];
+			ind--;
 		}
 	pthread_mutex_unlock(&buffermutex);
 	sem_post(&empty);
@@ -608,4 +610,21 @@ PrimeNumber * findsolution(PrimeNumber* finallist){
 		finallist=finallist->next;
 	}
 	return solution;
+}
+
+
+/*
+ * freelikedlist
+ * libere la liste chainée des facteurs premiers
+ * 
+ * finallist : liste chainée finale contenant tous les facteurs premiers trouvé dans les fichiers
+ */
+void freelinkedlist(PrimeNumber * finallist){
+	PrimeNumber * next;
+	while(finallist!=NULL){
+		next=finallist->next;
+		free(finallist);
+		finallist=NULL;
+		finallist=next;
+	}
 }
