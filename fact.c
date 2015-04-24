@@ -41,6 +41,7 @@ typedef struct primenumber{
 
 
 int getmaxthreads(int argc, char * argv[]);
+int filescount (int argc, char * argv[]);
 int lecture(int argc, char * argv[]);
 void addtobuffer(numberandname * nan);
 numberandname * readfrombuffer();
@@ -59,9 +60,10 @@ int finishedreading=0;
 
 
 int main(int argc, char * argv[]){
-	struct timeval * tv1;
-	struct timeval * tv2;
-	gettimeofday(tv1, NULL);
+	struct timeval tv1;
+	struct timeval tv2;
+	gettimeofday(&tv1, NULL);
+
 	//récupérer le nombre max de threads passé en argument
 	int nthr=getmaxthreads(argc, argv);
 	if(nthr==0)
@@ -73,19 +75,43 @@ int main(int argc, char * argv[]){
 	sem_init(&empty, 0, BSIZE);
 	sem_init(&full, 0, 0);
 
+	//déterminer le nombre de fichiers à lire pr savoir combien de thread producteur il va falloir lancer
+	int prodnumber=filescount (argc, argv);
 
-	//lance les threads consumer pour factoriser les nombres
-	pthread_t threads [nthr];
-	int i;
-	for(i=0; i<nthr; i++){
-		pthread_create(&(threads[i]), NULL, NULL, NULL); //consumer? argument?
+	//lancer la lecture des fichiers pour alimenter le buffer
+	pthread_t threadsprod[prodnumber];
+	int a;
+	for(a=0; a<prodnumber; a++){
+
+
+
+		pthread_create(&(threadsprod[a]), NULL, &lecture, NULL); 
+
+
 	}
 
+	//lancer les threads consumer pour factoriser les nombres
+	pthread_t threadscons [nthr];
+	int i;
+	for(i=0; i<nthr; i++){
+		pthread_create(&(threadscons[i]), NULL, NULL, NULL); //consumer? argument?
+	}
 
+	//on récuppère les threads producteurs
+	int b;
+	for(b=0; b<nthr; b++){
+		pthread_join(threadsprod[b], NULL); // NULL pr la valeur de retour?
+	}
+
+/*
 	//lancer la lecture des fichiers pour alimenter le buffer
 	int e=lecture(argc, argv);
 	if(e!=0)
 		return EXIT_FAILURE;//fermer threads d'abord?
+
+*/
+
+
 	finishedreading=1;//la lecture des fichiers est terminée
 	sem_post(&full);//pour débloquer les threads consumers (similaire à problème du rdv)
 
@@ -94,8 +120,7 @@ int main(int argc, char * argv[]){
 	PrimeNumber * retvals [nthr]; 
 	int j;
 	for(j=0; j<nthr; j++){
-		//retval[j]=(void *)malloc(sizeof(listefacteurspremiers));
-		pthread_join(threads[i], (void **)&(retvals[i]));
+		pthread_join(threadscons[i], (void **)&(retvals[i]));
 	}
 
 
@@ -109,7 +134,7 @@ int main(int argc, char * argv[]){
 		perror("no solution found");
 		return EXIT_FAILURE;
 	}
-	gettimeofday(tv2, NULL);
+	gettimeofday(&tv2, NULL);
 	printf("%i\n", solution->nbr);
 	printf("%s\n", solution->file);
 	printf("%i.%i\n", tv2->tv_sec - tv1->tv_sec, tv2->tv_usec - tv1->tv_usec);
@@ -315,7 +340,7 @@ void addprimefactor(uint64_t factor64, PrimeNumber **factorlist, char filename[]
 
 /*
  * getmaxthread
- * renvoie le nombre max de threads utilisables donnee a partir de la ligne de commande
+ * a partir de la ligne de commande, renvoie le nombre max de threads utilisables donnee
  *
  * argc : argc de main
  * argv : argv de main
@@ -329,6 +354,22 @@ int getmaxthreads(int argc, char * argv[]){
 		}
 	}
 	return nthr;
+}
+
+/*
+ * filescount
+ * a partir de la ligne de commande, renvoie le nombre de fichiers à lire (en incluant -stdio comme un fichier)
+ *
+ * argc : argc de main
+ * argv : argv de main
+ */
+int filescount (int argc, char * argv[]){
+	int files=0;
+	for(i=1; i<argc; i++){
+		if(strcmp(argv[i], "-stdin")==0 || strcmp(argv[i],"file")==0 || strncmp(argv[i],"http://",7)==0)
+			files++;
+	}
+	return files;
 }
 
 
