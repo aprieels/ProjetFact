@@ -163,7 +163,9 @@ int main(int argc, char * argv[]){
 
 	//temps écoulé
 	gettimeofday(&tv2, NULL);
-	printf("temps écoulé : %i.%i\n", (int)(tv2.tv_sec - tv1.tv_sec), (int)(tv2.tv_usec - tv1.tv_usec));//à corriger
+	//printf("temps écoulé : %i.%i\n", (int)(tv2.tv_sec - tv1.tv_sec), (int)(tv2.tv_usec - tv1.tv_usec));//à corriger
+	printf("sec écoulé : %i\n", (int)(tv2.tv_sec - tv1.tv_sec));
+	printf("usec écoulé : %i\n", (int)(tv2.tv_usec - tv1.tv_usec));
 }
 	
 
@@ -188,6 +190,7 @@ void * factorise(void * arg){
  		free(nan);
  		nan = readfrombuffer();
  	}
+	free(nan);
 	return factorlist;
 }
 
