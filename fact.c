@@ -22,7 +22,7 @@
 typedef struct{
 	short index; 
 	uint64_t nombre;
-} numberandindex;
+} numberAndIndex;
 
 /*
  * Liste chainée de facteurs premiers
@@ -32,12 +32,12 @@ typedef struct{
  * @multiple : 0 si le facteur n'apparait qu'une seule fois
  * @next : nombre premier suivant dans la liste chainée
  */
-typedef struct primenumber{
+typedef struct primeNumber{
 	short index;
 	uint32_t facteur; 
 	int multiple; 
-	struct primenumber * next;
-} PrimeNumber;
+	struct primeNumber * next;
+} primeNumber;
 
 
 /*
@@ -49,15 +49,15 @@ typedef struct primenumber{
 typedef struct {
 	short index;
 	char * file;
-} fileandindex;
+} fileAndIndex;
 
 
 uint64_t pollard(uint64_t);
-void addprimefactor(uint64_t, PrimeNumber*, short);
-void * getnumbers(void *);
-void decomp(uint64_t, PrimeNumber*, short);
+void addprimefactor(uint32_t, primeNumber*, short);
+void * factorise(void *);
+void decomp(uint64_t, primeNumber*, short);
 uint64_t pollard(uint64_t);
-uint64_t fact(uint64_t);
+uint64_t naive(uint64_t);
 uint64_t gcd(uint64_t, uint64_t);
 
 int getmaxthreads(int argc, char * argv[]);
@@ -65,18 +65,17 @@ int filescount (int argc, char * argv[]);
 void * readfile(void * filename);
 void * readURL(void * urlname);
 void * readstdin(void * arg);
-void addtobuffer(numberandindex * nan);
-numberandindex * readfrombuffer();
-PrimeNumber * merge(int nthr, PrimeNumber * retvals[]);
-PrimeNumber * findsolution(PrimeNumber * finallist);
-void freelinkedlist(PrimeNumber * finallist);
+void addtobuffer(numberAndIndex * nan);
+numberAndIndex * readfrombuffer();
+primeNumber * merge(int nthr, primeNumber * retvals[]);
+primeNumber * findsolution(primeNumber * finallist);
+void freelinkedlist(primeNumber * finallist);
 
-numberandindex * buffer[BSIZE];
+numberAndIndex * buffer[BSIZE];
 int curr=-1; //index du prochain nombre du buffer à factoriser
 pthread_mutex_t buffermutex;	
 sem_t empty;
 sem_t full;
-
 
 
 
@@ -100,26 +99,26 @@ int main(int argc, char * argv[]){
 
 	//lancer la lecture des fichiers pour alimenter le buffer, 1 fichier = 1 thread
 	pthread_t threadsprod[prodnumber];
-	fileandindex * fax;
+	fileAndIndex * fax;
 	int a=0;
 	int i;
 	for(i=0; i<argc; i++){
 		if(strcmp(argv[i], "-stdin")==0){
-			fax = (fileandindex *)malloc(sizeof(fileandindex));
+			fax = (fileAndIndex *)malloc(sizeof(fileAndIndex));
 			fax->index=(short)i;
 			fax->file="-stdin";
 			pthread_create(&(threadsprod[a]), NULL, &readstdin, (void *)fax);
 			a++;
 		}			
 		else if (strcmp(argv[i],"file")==0){
-			fax = (fileandindex *)malloc(sizeof(fileandindex));
+			fax = (fileAndIndex *)malloc(sizeof(fileAndIndex));
 			fax->index=(short)i;
 			fax->file=argv[i+1];
 			pthread_create(&(threadsprod[a]), NULL, &readfile, (void *)fax); 
 			a++;
 		}
 		else if (strncmp(argv[i],"http://",7)==0){
-			fax = (fileandindex *)malloc(sizeof(fileandindex));
+			fax = (fileAndIndex *)malloc(sizeof(fileAndIndex));
 			fax->index=(short)i;
 			fax->file=argv[i];
 			pthread_create(&(threadsprod[a]), NULL, &readURL, (void *)fax);
@@ -130,7 +129,7 @@ int main(int argc, char * argv[]){
 	//lancer les threads consumer pour factoriser les nombres
 	pthread_t threadscons [consnumber];
 	for(i=0; i<consnumber; i++){
-		pthread_create(&(threadscons[i]), NULL, &getnumbers, NULL);
+		pthread_create(&(threadscons[i]), NULL, &factorise, NULL);
 	}
 
 	//on récuppère les threads producteurs
@@ -141,16 +140,16 @@ int main(int argc, char * argv[]){
 	sem_post(&full);//pour débloquer les threads consumers (similaire à problème du rdv)
 
 	//récupère les listes chainées de chaque thread
-	PrimeNumber * retvals [consnumber]; 
+	primeNumber * retvals [consnumber]; 
 	for(i=0; i<consnumber; i++){
 		pthread_join(threadscons[i], (void **)&(retvals[i]));
 	}
 
 	//merge les listes chainées
-	PrimeNumber * finallist = merge(consnumber, retvals);	
+	primeNumber * finallist = merge(consnumber, retvals);	
 
 	//trouve le résultat, et printf
-	PrimeNumber * solution = findsolution(finallist);
+	primeNumber * solution = findsolution(finallist);
 	if(solution->facteur==0){
 		perror("no solution found");
 		return EXIT_FAILURE;
@@ -170,13 +169,14 @@ int main(int argc, char * argv[]){
 
 
 /*
+ * factorise
  *
- *
- *
+ * fonction de départ des threads consommateurs, factorise les nombres premiers du buffer, et renvoie une liste chainée des
+ * facteurs premiers qu'elle a trouvée
  */
-void * getnumbers(void * arg){
- 	numberandindex* nan;
- 	PrimeNumber* factorlist = malloc(sizeof(PrimeNumber));
+void * factorise(void * arg){
+ 	numberAndIndex* nan;
+ 	primeNumber* factorlist = malloc(sizeof(primeNumber));
 	if(factorlist == NULL)
  		exit(EXIT_FAILURE);
 	factorlist->facteur=0;
@@ -184,7 +184,7 @@ void * getnumbers(void * arg){
 	factorlist->index=0;
  	nan = readfrombuffer();
  	while(nan->nombre!=0) {
- 		decomp(nan->nombre, factorlist, nan->nomfichier);
+ 		decomp(nan->nombre, factorlist, nan->index);
  		free(nan);
  		nan = readfrombuffer();
  	}
@@ -196,24 +196,21 @@ void * getnumbers(void * arg){
  * Décomposition en facteurs premiers d'un nombre
  *
  * @facteur : Nombre à factoriser
- * @list : Liste chainée de PrimeNumber à laquelle il faut ajouter les facteurs premiers trouvés
+ * @list : Liste chainée de primeNumber à laquelle il faut ajouter les facteurs premiers trouvés
  * @index : Nom du fichier dans lequel facteur apparait, cela permet d'afficher le nom du fichier lorsque le facteur premier n'apparaissant qu'une fois a été trouvé
  */
-void decomp(uint64_t facteur, PrimeNumber* list, short index){
-
+void decomp(uint64_t facteur, primeNumber* list, short index){
 	uint64_t factor = pollard(facteur);
 	if (factor == 0){ //La méthode de pollard n'étant pas infaillible, si aucun facteur n'a été trouvé, on vérifiera que le nombre est bien premier en utilisant la méthode naïve
-	
-		factor = fact(facteur);
-		
-		if (factor == 0) //Si la méthode naïve ne trouve pas non plus de facteur, le nombre est donc bien premier...
-			addprimefactor(facteur, list, index); //... et peut être ajouté à la liste
-		else {
+		factor = naive(facteur);
+		if(factor == 0) //Si la méthode naïve ne trouve pas non plus de facteur, le nombre est donc bien premier...
+			addprimefactor((uint32_t)facteur, list, index); //... et peut être ajouté à la liste
+		else{
 			decomp(factor, list, index); //Si un diviseur est trouvé, on fait un appel récursif sur ce diviseur et le résultat de la division
 			decomp(facteur/factor, list, index);
 		}
 	}
-	else {
+	else{
 		decomp(factor, list, index);
 		decomp(facteur/factor, list, index);
 	}
@@ -232,31 +229,23 @@ void decomp(uint64_t facteur, PrimeNumber* list, short index){
 uint64_t pollard(uint64_t facteur){
 	if(facteur==1)
 		return 0;
-	
 	int i;	
 	uint64_t x = rand() % (facteur+1); //Choisi un nombre aléatoirement entre 0 et n
 	uint64_t y = x;
 	int k = 2;
 	uint64_t d = 0;
-	
 	for(i=0; d != facteur ; i++){ //La condition d!=facteur est arbitraire et permet uniquement d'éviter un livelock si le nombre est premier ou si aucun facteur n'est trouvé. Si un facteur n'est pas trouvé assez vite, on utilisera la méthode naïve pour vérifier que ce nombre est bien premier.
-	
 		x = f(x) % facteur;
 		d = gcd(abs(y-x), facteur);
-		
 		if((d != 1) && (d != facteur)){
 			return d;
 		}
-		
 		if(i==k){
 			y = x;
 			k=2*k;
 		}
-		
 	}
-	
 	return 0;
-
 }
 
 
@@ -268,43 +257,36 @@ uint64_t pollard(uint64_t facteur){
  * @return : PGCD des deux nombres
  */
 uint64_t gcd(uint64_t a, uint64_t b){
-
     uint64_t c;
-    while (b != 0)
-    {
+    while (b != 0){
         c = a % b;
         a = b;
         b = c;
     }
     return a;
-    
 }
  
+
 /*
- * fact
+ * naive
  * Cherche un facteur premier d'un nombre donné en utilisant la méthode naïve
  *
  * @facteur : Nombre dont il faut trouver un facteur
  * @return : Premier facteur trouvé, ou 0 si aucun facteur n'a été trouvé (facteur est donc premier)
  */ 
-uint64_t fact(uint64_t facteur){
+uint64_t naive(uint64_t facteur){
 	uint64_t i;
-	
 	if(facteur == 2)
 		return 0;
-	
 	if (facteur % 2 == 0) //Vérifie que 2 n'est pas un facteur
 		return 2;
-	
 	for(i=3; i < facteur; i=i+2){ //Ne teste pas les nombres pairs car, puisque 2 n'est pas un facteur, ces multiples ne peuvent pas non plus en être
-	
 		if (facteur % i == 0)
 			return i; //Retourne i si c'est un diviseur de facteur
-	
-	} 
-	
+	}
 	return 0; //Aucun diviseur n'a été trouvé, facteur est donc premier
 }
+
 
 /*
  * addprimefactor
@@ -315,62 +297,46 @@ uint64_t fact(uint64_t facteur){
  * @factorlist : Pointeur vers les pointeur du premier élément de la liste
  * @index : fichier duquel le facteur premier est tiré
  */
-void addprimefactor(uint64_t factor64, PrimeNumber* factorlist, short index){
-
-	uint32_t factor = factor64 & 0xFFFFFFFF; //Transforme le facteur, qui est initialement stocké sur 64 bits en format uint32_t
-	
-	if((*factorlist).facteur == 0){ //Cas où la liste est vide
-	
-		(*factorlist).facteur = factor;
-		(*factorlist).multiple = 0;
-		(*factorlist).index = index;
-		(*factorlist).next = NULL;
-				
+void addprimefactor(uint32_t factor, primeNumber* factorlist, short index){
+	primeNumber *previousprime;
+	primeNumber *currentprime = factorlist;		
+	if(factor < currentprime->facteur){ //Le nombre premier doit être ajouté en tête de liste
+		primeNumber* newprime = (primeNumber*) malloc(sizeof(primeNumber));
+		if(newprime == NULL)
+			exit(EXIT_FAILURE);
+		newprime->facteur = factor;
+		newprime->multiple = 0;
+		newprime->index = index;
+		newprime -> next = factorlist;
+		factorlist = newprime;
 	}
-	else { //La liste contient au moins un élément
-		PrimeNumber *previousprime;
-		PrimeNumber *currentprime = factorlist;
-		
-		if(factor < (*currentprime).facteur){ //Le nombre premier doit être ajouté en tête de liste
-			PrimeNumber* newprime = (PrimeNumber*) malloc(sizeof(PrimeNumber));
+	else{
+		while(currentprime->facteur < factor && currentprime -> next != NULL){ //On parcourt la liste jusqu'à trouver l'emplacement ou la nombre doit être ajouté
+			previousprime = currentprime;
+			currentprime = currentprime -> next;
+		}
+		if(currentprime->facteur == factor){
+			currentprime->multiple = 1; //Si le nombre se trouve déja dans la liste, on modifie simplement sa variable "multiple" pour indiquer qu'il apparait plus d'une fois 
+		}
+		else if(currentprime->facteur > factor) {// s'il faut ajouter le facteur entre previous et currentprime
+			primeNumber* newprime = (primeNumber*) malloc(sizeof(primeNumber));
 			if(newprime == NULL)
 				exit(EXIT_FAILURE);
-			(*newprime).facteur = factor;
-			(*newprime).multiple = 0;
-			(*newprime).index = index;
-			newprime -> next = factorlist;
-			factorlist = newprime;
-			
+			newprime->facteur = factor;
+			newprime->multiple = 0;
+			newprime->index = index;
+			newprime -> next = currentprime;
+			previousprime -> next = newprime;
 		}
-		else{
-		
-			while((*currentprime).facteur < factor && currentprime -> next != NULL){ //On parcourt la liste jusqu'à trouver l'emplacement ou la nombre doit être ajouté
-				previousprime = currentprime;
-				currentprime = currentprime -> next;
-			}
-			if((*currentprime).facteur == factor){
-				(*currentprime).multiple = 1; //Si le nombre se trouve déja dans la liste, on modifie simplement sa variable "multiple" pour indiquer qu'il apparait plus d'une fois 
-			}
-			else if((*currentprime).facteur > factor) {
-				PrimeNumber* newprime = (PrimeNumber*) malloc(sizeof(PrimeNumber));
-				if(newprime == NULL)
-					exit(EXIT_FAILURE);
-				(*newprime).facteur = factor;
-				(*newprime).multiple = 0;
-				(*newprime).index = index;
-				newprime -> next = currentprime;
-				previousprime -> next = newprime;
-			}
-			else {
-				PrimeNumber* newprime = (PrimeNumber*) malloc(sizeof(PrimeNumber));
-				if(newprime == NULL)
-					exit(EXIT_FAILURE);
-				(*newprime).facteur = factor;
-				(*newprime).multiple = 0;
-				(*newprime).index = index;
-				newprime -> next = NULL;
-				currentprime -> next = newprime;
-			}
+		else {// s'il faut ajouter le facteur en fin de liste
+			primeNumber* newprime = (primeNumber*) malloc(sizeof(primeNumber));
+			if(newprime == NULL)
+				exit(EXIT_FAILURE);
+			newprime->facteur = factor;
+			newprime->multiple = 0;
+			newprime->index = index;
+			newprime -> next = NULL;
+			currentprime -> next = newprime;
 		}
 	}
 }
@@ -382,6 +348,7 @@ void addprimefactor(uint64_t factor64, PrimeNumber* factorlist, short index){
  *
  * argc : argc de main
  * argv : argv de main
+ * return = le nombre max de threads utilisables par le programme
  */
 int getmaxthreads(int argc, char * argv[]){
 	int nthr=0;
@@ -400,6 +367,7 @@ int getmaxthreads(int argc, char * argv[]){
  *
  * argc : argc de main
  * argv : argv de main
+ * return = le nombre de fichiers à lire par le programme
  */
 int filescount (int argc, char * argv[]){
 	int files=0;
@@ -416,9 +384,10 @@ int filescount (int argc, char * argv[]){
  * lit un fichier dont le nom est spécifié par filename c, et place les nombres provenant de ce fichier dans le buffer
  *
  * filename : nom du fichier à lire
+ * return = NULL
  */
 void * readfile(void * arg){
-	fileandindex * fax=(fileandindex *) arg;
+	fileAndIndex * fax=(fileAndIndex *) arg;
 	char * file = fax->file;
 	short index=fax->index;
 	free(fax);
@@ -426,7 +395,7 @@ void * readfile(void * arg){
 	int descr;
 	int e;
 	uint64_t nombre;
-	numberandindex * nan;
+	numberAndIndex * nan;
 	//ouvrir le fichier
 	if((descr=open(file, O_RDONLY))<0){
 		perror("open");
@@ -438,7 +407,7 @@ void * readfile(void * arg){
 			perror("read");
 			return NULL;
 		}
-		nan=(numberandindex *)malloc(sizeof(numberandindex));
+		nan=(numberAndIndex *)malloc(sizeof(numberAndIndex));
 		if(nan==NULL){
 			return NULL;
 		}
@@ -458,10 +427,11 @@ void * readfile(void * arg){
  * lit un fichier url dont l'adresse est spécifiée par urlname, et place les nombres provenant de ce fichier dans le buffer
  *
  * urlname : nom du fichier URL à lire
+ * return = NULL
  */
 void * readURL(void * fax){
 /*
-	fileandindex * fax=(fileandindex *) arg;
+	fileAndIndex * fax=(fileAndIndex *) arg;
 	char * file = fax->file;
 	short index=fax->index;
 	free(fax);
@@ -469,7 +439,7 @@ void * readURL(void * fax){
 	int descr;
 	int e;
 	uint64_t nombre;
-	numberandindex * nan;
+	numberAndIndex * nan;
 	//ouvrir le fichier depuis le reseau
 	const char * mode="r";
 	URL_FILE *url =url_fopen(file,mode);
@@ -506,22 +476,23 @@ return NULL;
  * lit l'entrée standard et place les nombres provenant de l'entrée standard dans le buffer
  *
  * arg : inutilisé (==NULL)
+ * return = NULL
  */
 void * readstdin(void * arg){
-	fileandindex * fax=(fileandindex *) arg;
+	fileAndIndex * fax=(fileAndIndex *) arg;
 	short index=fax->index;
 	free(fax);
 	fax=NULL;
 	int descr;
 	int e;
 	uint64_t nombre;
-	numberandindex * nan;
+	numberAndIndex * nan;
 	while( (e=read(0, &nombre, sizeof(uint64_t))) != 0){
 		if(e<0){
 			perror("readstdin");				
 			return NULL;
 		}
-		nan=(numberandindex *)malloc(sizeof(numberandindex));
+		nan=(numberAndIndex *)malloc(sizeof(numberAndIndex));
 		if(nan==NULL){
 			return NULL;
 		}
@@ -533,12 +504,12 @@ void * readstdin(void * arg){
 
 /*
  * addtobuffer
- * rajoute le numberandindex passé en argument à buffer en respectant le protocole des producers-consumers
+ * rajoute le numberAndIndex passé en argument à buffer en respectant le protocole des producers-consumers
  *
- * nan : structure numberandindex a ajouter au buffer
+ * nan : structure numberAndIndex a ajouter au buffer
  *
  */
-void addtobuffer(numberandindex * nan){
+void addtobuffer(numberAndIndex * nan){
 	sem_wait(&empty);
 	pthread_mutex_lock(&buffermutex);
 		curr++;
@@ -549,17 +520,18 @@ void addtobuffer(numberandindex * nan){
 
 /*
  * readfrombuffer
- * retire et renvoie un numberandindex de buffer en respectant le protocole des producers-consumers
- * renvoie un pointeur vers un numberandindex avec un nombre=0 si le buffer est vide est la lecture de tous les fichiers est terminée
+ * retire et renvoie un numberAndIndex de buffer en respectant le protocole des producers-consumers
+ * renvoie un pointeur vers un numberAndIndex avec un nombre=0 si le buffer est vide est la lecture de tous les fichiers est terminée
  * 
+ * return = une structure numberAndIndex provenant du buffer
  */
-numberandindex * readfrombuffer(){
-	numberandindex * nan;
+numberAndIndex * readfrombuffer(){
+	numberAndIndex * nan;
 	sem_wait(&full);
 	pthread_mutex_lock(&buffermutex);
 		if(curr==-1){//cette condition ne sera validée que quand tous les threads consommateurs doivent être terminés
 			sem_post(&full);
-			nan=(numberandindex *)malloc(sizeof(numberandindex));
+			nan=(numberAndIndex *)malloc(sizeof(numberAndIndex));
 			if(nan==NULL){
 				return NULL; // compléter
 			}
@@ -582,9 +554,10 @@ numberandindex * readfrombuffer(){
  * 
  * retvals[] : liste des premiers élements des listes chainées associées à chaque thread
  * nthr : nombre de threads utilisés pour la factorisation, taille de retvals
+ * return = la liste chainée résultante contenant tous les facteurs premiers rencontrés dans les fichiers
  */
-PrimeNumber * merge(int nthr, PrimeNumber * retvals[]){
-	PrimeNumber * finallist=(PrimeNumber *)malloc(sizeof(PrimeNumber));
+primeNumber * merge(int nthr, primeNumber * retvals[]){
+	primeNumber * finallist=(primeNumber *)malloc(sizeof(primeNumber));
 	if(finallist==NULL){
 		return NULL;
 	}
@@ -593,10 +566,10 @@ PrimeNumber * merge(int nthr, PrimeNumber * retvals[]){
 	finallist->index=0;
 	finallist->next=retvals[0];
 	// on prend la liste chainée du premier thread, puis on y rajoute succésivement les listes chainées des autres threads.
-	PrimeNumber * currentnode;
-	PrimeNumber * nextnode;
-	PrimeNumber * addnode;
-	PrimeNumber * nextaddnode;
+	primeNumber * currentnode;
+	primeNumber * nextnode;
+	primeNumber * addnode;
+	primeNumber * nextaddnode;
 	int i;
 	for(i=1; i<nthr; i++){ 
 		currentnode=finallist;
@@ -635,9 +608,10 @@ PrimeNumber * merge(int nthr, PrimeNumber * retvals[]){
  * trouve le plus grand facteur premier unique présent dans une liste chainée ordonnée dans l'ordre croissant
  * 
  * finallist : liste chainée finale contenant tous les facteurs premiers trouvé dans les fichiers
+ * return = le nombre premier d'occurence unique le plus élevé trouvé dans la liste finale
  */
-PrimeNumber * findsolution(PrimeNumber* finallist){
-	PrimeNumber * solution=finallist;//parce qu'on sait que le premier élément de finalist est 0
+primeNumber * findsolution(primeNumber* finallist){
+	primeNumber * solution=finallist;//parce qu'on sait que le premier élément de finalist est 0
 	while(finallist!=NULL){
 		if(finallist->multiple==0){
 			solution=finallist;
@@ -654,8 +628,8 @@ PrimeNumber * findsolution(PrimeNumber* finallist){
  * 
  * finallist : liste chainée finale contenant tous les facteurs premiers trouvé dans les fichiers
  */
-void freelinkedlist(PrimeNumber * finallist){
-	PrimeNumber * next;
+void freelinkedlist(primeNumber * finallist){
+	primeNumber * next;
 	while(finallist!=NULL){
 		next=finallist->next;
 		free(finallist);
