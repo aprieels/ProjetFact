@@ -112,7 +112,7 @@ int main(int argc, char * argv[]){
 		}			
 		else if (strcmp(argv[i],"file")==0){
 			fax = (fileAndIndex *)malloc(sizeof(fileAndIndex));
-			fax->index=(short)i;
+			fax->index=(short)(i+1);
 			fax->file=argv[i+1];
 			pthread_create(&(threadsprod[a]), NULL, &readfile, (void *)fax); 
 			a++;
@@ -191,6 +191,7 @@ void * factorise(void * arg){
  		nan = readfrombuffer();
  	}
 	free(nan);
+	nan=NULL;
 	return factorlist;
 }
 
