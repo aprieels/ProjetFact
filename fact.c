@@ -17,7 +17,7 @@
  * structure contenant un nombre et le fichier duquel il provient
  *
  * @nombre : nombre à factoriser
- * @index : nom du fichier d'origine
+ * @index : index du nom du fichier d'origine dans argv[]
  */
 typedef struct{
 	short index; 
@@ -27,9 +27,9 @@ typedef struct{
 /*
  * Liste chainée de facteurs premiers
  *
+ * @index : index du nom du fichier d'origine dans argv[]
  * @facteur : Facteur premier
  * @multiple : 0 si le facteur n'apparait qu'une seule fois
- * @file : nom du premier fichier dans lequel apparait le facteur premier
  * @next : nombre premier suivant dans la liste chainée
  */
 typedef struct primenumber{
@@ -40,7 +40,12 @@ typedef struct primenumber{
 } PrimeNumber;
 
 
-
+/*
+ * un nom de fichier et son index dans argv[]
+ *
+ * @index : index du nom du fichier d'origine dans argv[]
+ * @file : nom du fichier
+ */
 typedef struct {
 	short index;
 	char * file;
@@ -67,13 +72,11 @@ PrimeNumber * findsolution(PrimeNumber * finallist);
 void freelinkedlist(PrimeNumber * finallist);
 
 numberandindex * buffer[BSIZE];
-int ind=-1; //index du prochain nombre du buffer a factoriser
+int curr=-1; //index du prochain nombre du buffer à factoriser
 pthread_mutex_t buffermutex;	
 sem_t empty;
 sem_t full;
 
-int finishedreading=0;
-//"booléen", qnd lecteur a fini de lire tt les fichiers, finishedreading==1
 
 
 
@@ -82,9 +85,8 @@ int main(int argc, char * argv[]){
 	struct timeval tv2;
 	gettimeofday(&tv1, NULL);
 
-	//récupérer le nombre max de threads passé en argument
+	//récupérer le nombre max de threads passé en argument, qui vaut le nombre de threads consommateurs utilisés
 	int consnumber=getmaxthreads(argc, argv);
-printf("consnumber=%i\n", consnumber);
 	if(consnumber==0)
 		return EXIT_FAILURE;
 	
@@ -93,11 +95,10 @@ printf("consnumber=%i\n", consnumber);
 	sem_init(&empty, 0, BSIZE);
 	sem_init(&full, 0, 0);
 
-	//déterminer le nombre de fichiers à lire pr savoir combien de threads producteur il va falloir lancer
+	//déterminer le nombre de fichiers à lire pour savoir combien de threads producteur il va falloir lancer
 	int prodnumber=filescount (argc, argv);
-printf("prodnumber=%i\n", prodnumber);
 
-	//lancer la lecture des fichiers pour alimenter le buffer
+	//lancer la lecture des fichiers pour alimenter le buffer, 1 fichier = 1 thread
 	pthread_t threadsprod[prodnumber];
 	fileandindex * fax;
 	int a=0;
@@ -137,7 +138,6 @@ printf("prodnumber=%i\n", prodnumber);
 		pthread_join(threadsprod[i], NULL);
 	}
 
-	finishedreading=1;//la lecture des fichiers est terminée
 	sem_post(&full);//pour débloquer les threads consumers (similaire à problème du rdv)
 
 	//récupère les listes chainées de chaque thread
@@ -420,6 +420,8 @@ void * readfile(void * arg){
 	fileandindex * fax=(fileandindex *) arg;
 	char * file = fax->file;
 	short index=fax->index;
+	free(fax);
+	fax=NULL;
 	int descr;
 	int e;
 	uint64_t nombre;
@@ -461,6 +463,8 @@ void * readURL(void * fax){
 	fileandindex * fax=(fileandindex *) arg;
 	char * file = fax->file;
 	short index=fax->index;
+	free(fax);
+	fax=NULL;
 	int descr;
 	int e;
 	uint64_t nombre;
@@ -505,6 +509,8 @@ return NULL;
 void * readstdin(void * arg){
 	fileandindex * fax=(fileandindex *) arg;
 	short index=fax->index;
+	free(fax);
+	fax=NULL;
 	int descr;
 	int e;
 	uint64_t nombre;
@@ -534,8 +540,8 @@ void * readstdin(void * arg){
 void addtobuffer(numberandindex * nan){
 	sem_wait(&empty);
 	pthread_mutex_lock(&buffermutex);
-		ind++;
-		buffer[ind]=nan;
+		curr++;
+		buffer[curr]=nan;
 	pthread_mutex_unlock(&buffermutex);
 	sem_post(&full);	
 }
@@ -550,7 +556,7 @@ numberandindex * readfrombuffer(){
 	numberandindex * nan;
 	sem_wait(&full);
 	pthread_mutex_lock(&buffermutex);
-		if(ind==-1 && finishedreading==1){
+		if(curr==-1){//cette condition ne sera validée que quand tous les threads consommateurs doivent être terminés
 			sem_post(&full);
 			nan=(numberandindex *)malloc(sizeof(numberandindex));
 			if(nan==NULL){
@@ -560,8 +566,8 @@ numberandindex * readfrombuffer(){
 			nan->index=0;
 		}
 		else{
-			nan=buffer[ind];
-			ind--;
+			nan=buffer[curr];
+			curr--;
 		}
 	pthread_mutex_unlock(&buffermutex);
 	sem_post(&empty);
