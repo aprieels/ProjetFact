@@ -49,9 +49,9 @@ uint64_t gcd(uint64_t, uint64_t);
 
 int getmaxthreads(int argc, char * argv[]);
 int filescount (int argc, char * argv[]);
-void * lecturefichier(void * filename);
-void * lectureURL(void * urlname);
-void * lecturestdin(void * arg);
+void * readfile(void * filename);
+void * readURL(void * urlname);
+void * readstdin(void * arg);
 void addtobuffer(numberandname * nan);
 numberandname * readfrombuffer();
 PrimeNumber * merge(int nthr, PrimeNumber * retvals[]);
@@ -95,23 +95,25 @@ printf("prodnumber=%i\n", prodnumber);
 	int i;
 	for(i=0; i<argc; i++){
 		if(strcmp(argv[i], "-stdin")==0){
-			pthread_create(&(threadsprod[a]), NULL, &lecturestdin, NULL);
+			pthread_create(&(threadsprod[a]), NULL, &readstdin, NULL);
 			a++;
 		}			
 		else if (strcmp(argv[i],"file")==0){
-			pthread_create(&(threadsprod[a]), NULL, &lecturefichier, (void *)argv[i+1]); 
+			pthread_create(&(threadsprod[a]), NULL, &readfile, (void *)argv[i+1]); 
 			a++;
 		}
 		else if (strncmp(argv[i],"http://",7)==0){
-			pthread_create(&(threadsprod[a]), NULL, &lectureURL, (void *)argv[i]);
+			pthread_create(&(threadsprod[a]), NULL, &readURL, (void *)argv[i]);
 			a++; 
 		}
 	}
+
 	//lancer les threads consumer pour factoriser les nombres
 	pthread_t threadscons [consnumber];
 	for(i=0; i<consnumber; i++){
 		pthread_create(&(threadscons[i]), NULL, &getnumbers, NULL);
 	}
+
 	//on récuppère les threads producteurs
 	for(i=0; i<prodnumber; i++){
 		pthread_join(threadsprod[i], NULL); // NULL pr la valeur de retour?
@@ -125,7 +127,7 @@ printf("prodnumber=%i\n", prodnumber);
 	for(i=0; i<consnumber; i++){
 		pthread_join(threadscons[i], (void **)&(retvals[i]));
 	}
-
+printf("%i\n", (int)((retvals[1])->next)->nbr);
 	//merge les listes chainées
 	PrimeNumber * finallist = merge(consnumber, retvals);	
 
@@ -167,7 +169,7 @@ void * getnumbers(void * arg){
  		decomp(nan->nombre, factorlist, nan->nomfichier);
  		nan = readfrombuffer();
  	}
-	return NULL;
+	return factorlist;
 }
 
 
@@ -392,12 +394,12 @@ int filescount (int argc, char * argv[]){
 }
 
 /*
- * lecturefichier
+ * readfile
  * lit un fichier dont le nom est spécifié par filename c, et place les nombres provenant de ce fichier dans le buffer
  *
  * filename : nom du fichier à lire
  */
-void * lecturefichier(void * filename){
+void * readfile(void * filename){
 	char * nomfichier = (char *) filename;
 	int descr;
 	int e;
@@ -430,12 +432,12 @@ void * lecturefichier(void * filename){
 }
 
 /*
- * lectureurl
+ * readURL
  * lit un fichier url dont l'adresse est spécifiée par urlname, et place les nombres provenant de ce fichier dans le buffer
  *
  * urlname : nom du fichier URL à lire
  */
-void * lectureURL(void * urlname){
+void * readURL(void * urlname){
 /*
 	char * nomurl=(char *) urlname;
 	int descr;
@@ -474,12 +476,12 @@ return NULL;
 
 
 /*
- * lecturestdin
+ * readstdin
  * lit l'entrée standard et place les nombres provenant de l'entrée standard dans le buffer
  *
  * arg : inutilisé (==NULL)
  */
-void * lecturestdin(void * arg){
+void * readstdin(void * arg){
 	int descr;
 	int e;
 	uint64_t nombre;
