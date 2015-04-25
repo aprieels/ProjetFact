@@ -67,8 +67,6 @@ sem_t full;
 int finishedreading=0;
 //"booléen", qnd lecteur a fini de lire tt les fichiers, finishedreading==1
 
-
-
 int main(int argc, char * argv[]){
 	struct timeval tv1;
 	struct timeval tv2;
@@ -138,14 +136,14 @@ printf("%i\n", (int)((retvals[1])->next)->nbr);
 		return EXIT_FAILURE;
 	}
 
-	//free finallist
-	freelinkedlist(finallist);
-
 	//temps écoulé
 	gettimeofday(&tv2, NULL);
 	printf("%i\n", solution->nbr);
 	printf("%s\n", solution->file);
 	printf("%i.%i\n", (int)(tv2.tv_sec - tv1.tv_sec), (int)(tv2.tv_usec - tv1.tv_usec));//à corriger
+	
+	//free finallist
+	freelinkedlist(finallist);
 }
 	
 
@@ -165,8 +163,8 @@ void * getnumbers(void * arg){
 	factorlist->file="x";
  	nan = readfrombuffer();
  	while(nan->nombre!=0) {
- 	 	printf("%p\n", &factorlist);
  		decomp(nan->nombre, factorlist, nan->nomfichier);
+ 		free(nan);
  		nan = readfrombuffer();
  	}
 	return factorlist;
@@ -187,8 +185,9 @@ void decomp(uint64_t nbr, PrimeNumber* list, char* filename){
 	
 		factor = fact(nbr);
 		
-		if (factor == 0) //Si la méthode naïve ne trouve pas non plus de facteur, le nombre est donc bien premier...
+		if (factor == 0){ //Si la méthode naïve ne trouve pas non plus de facteur, le nombre est donc bien premier...
 			addprimefactor(nbr, list, filename); //... et peut être ajouté à la liste
+			}
 		else {
 			decomp(factor, list, filename); //Si un diviseur est trouvé, on fait un appel récursif sur ce diviseur et le résultat de la division
 			decomp(nbr/factor, list, filename);
@@ -576,7 +575,7 @@ PrimeNumber * merge(int nthr, PrimeNumber * retvals[]){
 			if(nextnode==NULL){
 				currentnode->next=addnode;
 				addnode=NULL;
-			}
+			}                
 			else{
 				if(addnode->nbr == nextnode->nbr){//si le nombre a insérer est déjà dans la liste principale
 					nextnode->multiple=1;
@@ -612,6 +611,7 @@ PrimeNumber * findsolution(PrimeNumber* finallist){
 		if(finallist->multiple==0){
 			solution=finallist;
 		}
+		
 		finallist=finallist->next;
 	}
 	return solution;
