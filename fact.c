@@ -112,7 +112,7 @@ int main(int argc, char * argv[]){
 		}			
 		else if (strcmp(argv[i],"file")==0){
 			fax = (fileAndIndex *)malloc(sizeof(fileAndIndex));
-			fax->index=(short)i;
+			fax->index=(short)i+1;
 			fax->file=argv[i+1];
 			pthread_create(&(threadsprod[a]), NULL, &readfile, (void *)fax); 
 			a++;
@@ -164,8 +164,14 @@ int main(int argc, char * argv[]){
 	//temps écoulé
 	gettimeofday(&tv2, NULL);
 	//printf("temps écoulé : %i.%i\n", (int)(tv2.tv_sec - tv1.tv_sec), (int)(tv2.tv_usec - tv1.tv_usec));//à corriger
-	printf("sec écoulé : %i\n", (int)(tv2.tv_sec - tv1.tv_sec));
-	printf("usec écoulé : %i\n", (int)(tv2.tv_usec - tv1.tv_usec));
+	int sec = (int)(tv2.tv_sec - tv1.tv_sec);
+	int usec = (int)(tv2.tv_usec - tv1.tv_usec);
+	if(usec < 0){
+		sec = sec-1;
+		usec = 1000000-usec;
+	}
+	printf("temps écoulé : %d.%d\n", sec, usec);
+	return EXIT_SUCCESS;
 }
 	
 
@@ -177,20 +183,21 @@ int main(int argc, char * argv[]){
  * facteurs premiers qu'elle a trouvée
  */
 void * factorise(void * arg){
- 	numberAndIndex* nan;
- 	primeNumber* factorlist = malloc(sizeof(primeNumber));
+ 	numberAndIndex* nai;
+ 	primeNumber* factorlist =(primeNumber *) malloc(sizeof(primeNumber));
 	if(factorlist == NULL)
  		exit(EXIT_FAILURE);
 	factorlist->facteur=0;
 	factorlist->multiple=0;
 	factorlist->index=0;
- 	nan = readfrombuffer();
- 	while(nan->nombre!=0) {
- 		decomp(nan->nombre, factorlist, nan->index);
- 		free(nan);
- 		nan = readfrombuffer();
+	factorlist -> next = NULL;
+ 	nai = readfrombuffer();
+ 	while(nai->nombre!=0) {
+ 		decomp(nai->nombre, factorlist, nai->index);
+ 		free(nai);
+ 		nai = readfrombuffer();
  	}
-	free(nan);
+	free(nai);
 	return factorlist;
 }
 
@@ -303,44 +310,33 @@ uint64_t naive(uint64_t facteur){
 void addprimefactor(uint32_t factor, primeNumber* factorlist, short index){
 	primeNumber *previousprime;
 	primeNumber *currentprime = factorlist;		
-	if(factor < currentprime->facteur){ //Le nombre premier doit être ajouté en tête de liste
+
+	while(currentprime->facteur < factor && currentprime -> next != NULL){ //On parcourt la liste jusqu'à trouver l'emplacement ou la nombre doit être ajouté
+		previousprime = currentprime;
+		currentprime = currentprime -> next;
+	}
+	if(currentprime->facteur == factor){
+		currentprime->multiple = 1; //Si le nombre se trouve déja dans la liste, on modifie simplement sa variable "multiple" pour indiquer qu'il apparait plus d'une fois 
+	}
+	else if(currentprime->facteur > factor) {// s'il faut ajouter le facteur entre previous et currentprime
 		primeNumber* newprime = (primeNumber*) malloc(sizeof(primeNumber));
 		if(newprime == NULL)
 			exit(EXIT_FAILURE);
 		newprime->facteur = factor;
 		newprime->multiple = 0;
 		newprime->index = index;
-		newprime -> next = factorlist;
-		factorlist = newprime;
+		newprime -> next = currentprime;
+		previousprime -> next = newprime;
 	}
-	else{
-		while(currentprime->facteur < factor && currentprime -> next != NULL){ //On parcourt la liste jusqu'à trouver l'emplacement ou la nombre doit être ajouté
-			previousprime = currentprime;
-			currentprime = currentprime -> next;
-		}
-		if(currentprime->facteur == factor){
-			currentprime->multiple = 1; //Si le nombre se trouve déja dans la liste, on modifie simplement sa variable "multiple" pour indiquer qu'il apparait plus d'une fois 
-		}
-		else if(currentprime->facteur > factor) {// s'il faut ajouter le facteur entre previous et currentprime
-			primeNumber* newprime = (primeNumber*) malloc(sizeof(primeNumber));
-			if(newprime == NULL)
-				exit(EXIT_FAILURE);
-			newprime->facteur = factor;
-			newprime->multiple = 0;
-			newprime->index = index;
-			newprime -> next = currentprime;
-			previousprime -> next = newprime;
-		}
-		else {// s'il faut ajouter le facteur en fin de liste
-			primeNumber* newprime = (primeNumber*) malloc(sizeof(primeNumber));
-			if(newprime == NULL)
-				exit(EXIT_FAILURE);
-			newprime->facteur = factor;
-			newprime->multiple = 0;
-			newprime->index = index;
-			newprime -> next = NULL;
-			currentprime -> next = newprime;
-		}
+	else {// s'il faut ajouter le facteur en fin de liste
+		primeNumber* newprime = (primeNumber*) malloc(sizeof(primeNumber));
+		if(newprime == NULL)
+			exit(EXIT_FAILURE);
+		newprime->facteur = factor;
+		newprime->multiple = 0;
+		newprime->index = index;
+		newprime -> next = NULL;
+		currentprime -> next = newprime;
 	}
 }
 	
