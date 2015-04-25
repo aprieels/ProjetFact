@@ -163,14 +163,15 @@ int main(int argc, char * argv[]){
 
 	//temps écoulé
 	gettimeofday(&tv2, NULL);
-	//printf("temps écoulé : %i.%i\n", (int)(tv2.tv_sec - tv1.tv_sec), (int)(tv2.tv_usec - tv1.tv_usec));//à corriger
+	
 	int sec = (int)(tv2.tv_sec - tv1.tv_sec);
 	int usec = (int)(tv2.tv_usec - tv1.tv_usec);
 	if(usec < 0){
 		sec = sec-1;
 		usec = 1000000-usec;
 	}
-	printf("temps écoulé : %d.%d\n", sec, usec);
+	printf("sec écoulé : %d\n", sec);
+	printf("usec écoulé : %d\n", usec);
 	return EXIT_SUCCESS;
 }
 	
