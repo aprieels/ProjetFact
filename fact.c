@@ -17,32 +17,40 @@
  * structure contenant un nombre et le fichier duquel il provient
  *
  * @nombre : nombre à factoriser
- * @nomfichier : nom du fichier d'origine
+ * @index : nom du fichier d'origine
  */
 typedef struct{
+	short index; 
 	uint64_t nombre;
-	char * nomfichier; // transformer en short correspondant à un nom de fichier?
-} numberandname;
+} numberandindex;
 
 /*
  * Liste chainée de facteurs premiers
  *
- * @nbr : Facteur premier
+ * @facteur : Facteur premier
  * @multiple : 0 si le facteur n'apparait qu'une seule fois
  * @file : nom du premier fichier dans lequel apparait le facteur premier
  * @next : nombre premier suivant dans la liste chainée
  */
 typedef struct primenumber{
-	uint32_t nbr; 
+	short index;
+	uint32_t facteur; 
 	int multiple; 
 	struct primenumber * next;
-	char * file;
 } PrimeNumber;
 
+
+
+typedef struct {
+	short index;
+	char * file;
+} fileandindex;
+
+
 uint64_t pollard(uint64_t);
-void addprimefactor(uint64_t, PrimeNumber*, char*);
-void * getnumbers(void * arg);
-void decomp(uint64_t, PrimeNumber*, char*);
+void addprimefactor(uint64_t, PrimeNumber*, short);
+void * getnumbers(void *);
+void decomp(uint64_t, PrimeNumber*, short);
 uint64_t pollard(uint64_t);
 uint64_t fact(uint64_t);
 uint64_t gcd(uint64_t, uint64_t);
@@ -52,13 +60,13 @@ int filescount (int argc, char * argv[]);
 void * readfile(void * filename);
 void * readURL(void * urlname);
 void * readstdin(void * arg);
-void addtobuffer(numberandname * nan);
-numberandname * readfrombuffer();
+void addtobuffer(numberandindex * nan);
+numberandindex * readfrombuffer();
 PrimeNumber * merge(int nthr, PrimeNumber * retvals[]);
 PrimeNumber * findsolution(PrimeNumber * finallist);
 void freelinkedlist(PrimeNumber * finallist);
 
-numberandname * buffer[BSIZE];
+numberandindex * buffer[BSIZE];
 int ind=-1; //index du prochain nombre du buffer a factoriser
 pthread_mutex_t buffermutex;	
 sem_t empty;
@@ -91,19 +99,29 @@ printf("prodnumber=%i\n", prodnumber);
 
 	//lancer la lecture des fichiers pour alimenter le buffer
 	pthread_t threadsprod[prodnumber];
+	fileandindex * fax;
 	int a=0;
 	int i;
 	for(i=0; i<argc; i++){
 		if(strcmp(argv[i], "-stdin")==0){
-			pthread_create(&(threadsprod[a]), NULL, &readstdin, NULL);
+			fax = (fileandindex *)malloc(sizeof(fileandindex));
+			fax->index=(short)i;
+			fax->file="-stdin";
+			pthread_create(&(threadsprod[a]), NULL, &readstdin, (void *)fax);
 			a++;
 		}			
 		else if (strcmp(argv[i],"file")==0){
-			pthread_create(&(threadsprod[a]), NULL, &readfile, (void *)argv[i+1]); 
+			fax = (fileandindex *)malloc(sizeof(fileandindex));
+			fax->index=(short)i;
+			fax->file=argv[i+1];
+			pthread_create(&(threadsprod[a]), NULL, &readfile, (void *)fax); 
 			a++;
 		}
 		else if (strncmp(argv[i],"http://",7)==0){
-			pthread_create(&(threadsprod[a]), NULL, &readURL, (void *)argv[i]);
+			fax = (fileandindex *)malloc(sizeof(fileandindex));
+			fax->index=(short)i;
+			fax->file=argv[i];
+			pthread_create(&(threadsprod[a]), NULL, &readURL, (void *)fax);
 			a++; 
 		}
 	}
@@ -116,7 +134,7 @@ printf("prodnumber=%i\n", prodnumber);
 
 	//on récuppère les threads producteurs
 	for(i=0; i<prodnumber; i++){
-		pthread_join(threadsprod[i], NULL); // NULL pr la valeur de retour?
+		pthread_join(threadsprod[i], NULL);
 	}
 
 	finishedreading=1;//la lecture des fichiers est terminée
@@ -127,25 +145,26 @@ printf("prodnumber=%i\n", prodnumber);
 	for(i=0; i<consnumber; i++){
 		pthread_join(threadscons[i], (void **)&(retvals[i]));
 	}
-printf("%i\n", (int)((retvals[1])->next)->nbr);
+
 	//merge les listes chainées
 	PrimeNumber * finallist = merge(consnumber, retvals);	
 
 	//trouve le résultat, et printf
 	PrimeNumber * solution = findsolution(finallist);
-	if(solution->nbr==0){
+	if(solution->facteur==0){
 		perror("no solution found");
 		return EXIT_FAILURE;
 	}
+
+	printf("solution : %i\n", solution->facteur);
+	printf("fichier : %s\n", argv[solution->index]);
 
 	//free finallist
 	freelinkedlist(finallist);
 
 	//temps écoulé
 	gettimeofday(&tv2, NULL);
-	printf("%i\n", solution->nbr);
-	printf("%s\n", solution->file);
-	printf("%i.%i\n", (int)(tv2.tv_sec - tv1.tv_sec), (int)(tv2.tv_usec - tv1.tv_usec));//à corriger
+	printf("temps écoulé : %i.%i\n", (int)(tv2.tv_sec - tv1.tv_sec), (int)(tv2.tv_usec - tv1.tv_usec));//à corriger
 }
 	
 
@@ -156,17 +175,16 @@ printf("%i\n", (int)((retvals[1])->next)->nbr);
  *
  */
 void * getnumbers(void * arg){
- 	numberandname* nan;
+ 	numberandindex* nan;
  	PrimeNumber* factorlist = malloc(sizeof(PrimeNumber));
 	if(factorlist == NULL)
  		exit(EXIT_FAILURE);
-	factorlist->nbr=0;
+	factorlist->facteur=0;
 	factorlist->multiple=0;
-	factorlist->file="x";
+	factorlist->index=0;
  	nan = readfrombuffer();
  	while(nan->nombre!=0) {
- 	 	printf("%p\n", &factorlist);
- 		decomp(nan->nombre, factorlist, nan->nomfichier);
+ 		decomp(nan->nombre, factorlist, nan->index);
  		nan = readfrombuffer();
  	}
 	return factorlist;
@@ -176,27 +194,27 @@ void * getnumbers(void * arg){
 /*
  * Décomposition en facteurs premiers d'un nombre
  *
- * @nbr : Nombre à factoriser
+ * @facteur : Nombre à factoriser
  * @list : Liste chainée de PrimeNumber à laquelle il faut ajouter les facteurs premiers trouvés
- * @filename : Nom du fichier dans lequel nbr apparait, cela permet d'afficher le nom du fichier lorsque le facteur premier n'apparaissant qu'une fois a été trouvé
+ * @index : Nom du fichier dans lequel facteur apparait, cela permet d'afficher le nom du fichier lorsque le facteur premier n'apparaissant qu'une fois a été trouvé
  */
-void decomp(uint64_t nbr, PrimeNumber* list, char* filename){
+void decomp(uint64_t facteur, PrimeNumber* list, short index){
 
-	uint64_t factor = pollard(nbr);
+	uint64_t factor = pollard(facteur);
 	if (factor == 0){ //La méthode de pollard n'étant pas infaillible, si aucun facteur n'a été trouvé, on vérifiera que le nombre est bien premier en utilisant la méthode naïve
 	
-		factor = fact(nbr);
+		factor = fact(facteur);
 		
 		if (factor == 0) //Si la méthode naïve ne trouve pas non plus de facteur, le nombre est donc bien premier...
-			addprimefactor(nbr, list, filename); //... et peut être ajouté à la liste
+			addprimefactor(facteur, list, index); //... et peut être ajouté à la liste
 		else {
-			decomp(factor, list, filename); //Si un diviseur est trouvé, on fait un appel récursif sur ce diviseur et le résultat de la division
-			decomp(nbr/factor, list, filename);
+			decomp(factor, list, index); //Si un diviseur est trouvé, on fait un appel récursif sur ce diviseur et le résultat de la division
+			decomp(facteur/factor, list, index);
 		}
 	}
 	else {
-		decomp(factor, list, filename);
-		decomp(nbr/factor, list, filename);
+		decomp(factor, list, index);
+		decomp(facteur/factor, list, index);
 	}
 }
 
@@ -207,25 +225,25 @@ void decomp(uint64_t nbr, PrimeNumber* list, char* filename){
  * Cherche un facteur d'un nombre donné en utilisant la méthode Rho de Pollard
  * Attention : Cette méthode est plus rapide que la méthode naïve mais n'est pas infaillible
  *
- * @nbr : Nombre dont il faut trouver un facteur
+ * @facteur : Nombre dont il faut trouver un facteur
  * @return : Facteur de n trouvé, ou 0 si aucun facteur n'a été trouvé
  */
-uint64_t pollard(uint64_t nbr){
-	if(nbr==1)
+uint64_t pollard(uint64_t facteur){
+	if(facteur==1)
 		return 0;
 	
 	int i;	
-	uint64_t x = rand() % (nbr+1); //Choisi un nombre aléatoirement entre 0 et n
+	uint64_t x = rand() % (facteur+1); //Choisi un nombre aléatoirement entre 0 et n
 	uint64_t y = x;
 	int k = 2;
 	uint64_t d = 0;
 	
-	for(i=0; d != nbr ; i++){ //La condition d!=nbr est arbitraire et permet uniquement d'éviter un livelock si le nombre est premier ou si aucun facteur n'est trouvé. Si un facteur n'est pas trouvé assez vite, on utilisera la méthode naïve pour vérifier que ce nombre est bien premier.
+	for(i=0; d != facteur ; i++){ //La condition d!=facteur est arbitraire et permet uniquement d'éviter un livelock si le nombre est premier ou si aucun facteur n'est trouvé. Si un facteur n'est pas trouvé assez vite, on utilisera la méthode naïve pour vérifier que ce nombre est bien premier.
 	
-		x = f(x) % nbr;
-		d = gcd(abs(y-x), nbr);
+		x = f(x) % facteur;
+		d = gcd(abs(y-x), facteur);
 		
-		if((d != 1) && (d != nbr)){
+		if((d != 1) && (d != facteur)){
 			return d;
 		}
 		
@@ -265,26 +283,26 @@ uint64_t gcd(uint64_t a, uint64_t b){
  * fact
  * Cherche un facteur premier d'un nombre donné en utilisant la méthode naïve
  *
- * @nbr : Nombre dont il faut trouver un facteur
- * @return : Premier facteur trouvé, ou 0 si aucun facteur n'a été trouvé (nbr est donc premier)
+ * @facteur : Nombre dont il faut trouver un facteur
+ * @return : Premier facteur trouvé, ou 0 si aucun facteur n'a été trouvé (facteur est donc premier)
  */ 
-uint64_t fact(uint64_t nbr){
+uint64_t fact(uint64_t facteur){
 	uint64_t i;
 	
-	if(nbr == 2)
+	if(facteur == 2)
 		return 0;
 	
-	if (nbr % 2 == 0) //Vérifie que 2 n'est pas un facteur
+	if (facteur % 2 == 0) //Vérifie que 2 n'est pas un facteur
 		return 2;
 	
-	for(i=3; i < nbr; i=i+2){ //Ne teste pas les nombres pairs car, puisque 2 n'est pas un facteur, ces multiples ne peuvent pas non plus en être
+	for(i=3; i < facteur; i=i+2){ //Ne teste pas les nombres pairs car, puisque 2 n'est pas un facteur, ces multiples ne peuvent pas non plus en être
 	
-		if (nbr % i == 0)
-			return i; //Retourne i si c'est un diviseur de nbr
+		if (facteur % i == 0)
+			return i; //Retourne i si c'est un diviseur de facteur
 	
 	} 
 	
-	return 0; //Aucun diviseur n'a été trouvé, nbr est donc premier
+	return 0; //Aucun diviseur n'a été trouvé, facteur est donc premier
 }
 
 /*
@@ -294,17 +312,17 @@ uint64_t fact(uint64_t nbr){
  *
  * @factor64 : Facteur premier à ajouter à la liste sous la forme uint64_t
  * @factorlist : Pointeur vers les pointeur du premier élément de la liste
- * @filename : fichier duquel le facteur premier est tiré
+ * @index : fichier duquel le facteur premier est tiré
  */
-void addprimefactor(uint64_t factor64, PrimeNumber* factorlist, char* filename){
+void addprimefactor(uint64_t factor64, PrimeNumber* factorlist, short index){
 
 	uint32_t factor = factor64 & 0xFFFFFFFF; //Transforme le facteur, qui est initialement stocké sur 64 bits en format uint32_t
 	
-	if((*factorlist).nbr == 0){ //Cas où la liste est vide
+	if((*factorlist).facteur == 0){ //Cas où la liste est vide
 	
-		(*factorlist).nbr = factor;
+		(*factorlist).facteur = factor;
 		(*factorlist).multiple = 0;
-		(*factorlist).file = filename;
+		(*factorlist).index = index;
 		(*factorlist).next = NULL;
 				
 	}
@@ -312,33 +330,33 @@ void addprimefactor(uint64_t factor64, PrimeNumber* factorlist, char* filename){
 		PrimeNumber *previousprime;
 		PrimeNumber *currentprime = factorlist;
 		
-		if(factor < (*currentprime).nbr){ //Le nombre premier doit être ajouté en tête de liste
+		if(factor < (*currentprime).facteur){ //Le nombre premier doit être ajouté en tête de liste
 			PrimeNumber* newprime = (PrimeNumber*) malloc(sizeof(PrimeNumber));
 			if(newprime == NULL)
 				exit(EXIT_FAILURE);
-			(*newprime).nbr = factor;
+			(*newprime).facteur = factor;
 			(*newprime).multiple = 0;
-			(*newprime).file = filename;
+			(*newprime).index = index;
 			newprime -> next = factorlist;
 			factorlist = newprime;
 			
 		}
 		else{
 		
-			while((*currentprime).nbr < factor && currentprime -> next != NULL){ //On parcourt la liste jusqu'à trouver l'emplacement ou la nombre doit être ajouté
+			while((*currentprime).facteur < factor && currentprime -> next != NULL){ //On parcourt la liste jusqu'à trouver l'emplacement ou la nombre doit être ajouté
 				previousprime = currentprime;
 				currentprime = currentprime -> next;
 			}
-			if((*currentprime).nbr == factor){
+			if((*currentprime).facteur == factor){
 				(*currentprime).multiple = 1; //Si le nombre se trouve déja dans la liste, on modifie simplement sa variable "multiple" pour indiquer qu'il apparait plus d'une fois 
 			}
-			else if((*currentprime).nbr > factor) {
+			else if((*currentprime).facteur > factor) {
 				PrimeNumber* newprime = (PrimeNumber*) malloc(sizeof(PrimeNumber));
 				if(newprime == NULL)
 					exit(EXIT_FAILURE);
-				(*newprime).nbr = factor;
+				(*newprime).facteur = factor;
 				(*newprime).multiple = 0;
-				(*newprime).file = filename;
+				(*newprime).index = index;
 				newprime -> next = currentprime;
 				previousprime -> next = newprime;
 			}
@@ -346,15 +364,14 @@ void addprimefactor(uint64_t factor64, PrimeNumber* factorlist, char* filename){
 				PrimeNumber* newprime = (PrimeNumber*) malloc(sizeof(PrimeNumber));
 				if(newprime == NULL)
 					exit(EXIT_FAILURE);
-				(*newprime).nbr = factor;
+				(*newprime).facteur = factor;
 				(*newprime).multiple = 0;
-				(*newprime).file = filename;
+				(*newprime).index = index;
 				newprime -> next = NULL;
 				currentprime -> next = newprime;
 			}
 		}
 	}
-
 }
 	
 
@@ -399,14 +416,16 @@ int filescount (int argc, char * argv[]){
  *
  * filename : nom du fichier à lire
  */
-void * readfile(void * filename){
-	char * nomfichier = (char *) filename;
+void * readfile(void * arg){
+	fileandindex * fax=(fileandindex *) arg;
+	char * file = fax->file;
+	short index=fax->index;
 	int descr;
 	int e;
 	uint64_t nombre;
-	numberandname * nan;
+	numberandindex * nan;
 	//ouvrir le fichier
-	if((descr=open(filename, O_RDONLY))<0){
+	if((descr=open(file, O_RDONLY))<0){
 		perror("open");
 		return NULL;
 	}
@@ -416,12 +435,12 @@ void * readfile(void * filename){
 			perror("read");
 			return NULL;
 		}
-		nan=(numberandname *)malloc(sizeof(numberandname));
+		nan=(numberandindex *)malloc(sizeof(numberandindex));
 		if(nan==NULL){
 			return NULL;
 		}
 		nan->nombre=be64toh(nombre);//nombre transformé en représentation locale
-		nan->nomfichier=filename;
+		nan->index=index;
 		addtobuffer(nan);
 	}
 	//fermer le fichier
@@ -437,16 +456,18 @@ void * readfile(void * filename){
  *
  * urlname : nom du fichier URL à lire
  */
-void * readURL(void * urlname){
+void * readURL(void * fax){
 /*
-	char * nomurl=(char *) urlname;
+	fileandindex * fax=(fileandindex *) arg;
+	char * file = fax->file;
+	short index=fax->index;
 	int descr;
 	int e;
 	uint64_t nombre;
-	numberandname * nan;
+	numberandindex * nan;
 	//ouvrir le fichier depuis le reseau
 	const char * mode="r";
-	URL_FILE *url =url_fopen(nomurl,mode);
+	URL_FILE *url =url_fopen(file,mode);
 	if(url==NULL){
 		perror("openurl");
 		return NULL;
@@ -457,12 +478,12 @@ void * readURL(void * urlname){
 			perror("readurl");
 			return NULL;
 		}
-		nan=(numberandname *)malloc(sizeof(numberandname));
+		nan=(numberandindex *)malloc(sizeof(numberandindex));
 		if(nan==NULL){
 			return NULL;
 		}
 		nan->nombre=be64toh(nombre);
-		nan->nomfichier=nomurl;
+		nan->index=nomurl;
 		addtobuffer(nan);
 	}
 	//fermer le fichier
@@ -482,33 +503,35 @@ return NULL;
  * arg : inutilisé (==NULL)
  */
 void * readstdin(void * arg){
+	fileandindex * fax=(fileandindex *) arg;
+	short index=fax->index;
 	int descr;
 	int e;
 	uint64_t nombre;
-	numberandname * nan;
+	numberandindex * nan;
 	while( (e=read(0, &nombre, sizeof(uint64_t))) != 0){
 		if(e<0){
 			perror("readstdin");				
 			return NULL;
 		}
-		nan=(numberandname *)malloc(sizeof(numberandname));
+		nan=(numberandindex *)malloc(sizeof(numberandindex));
 		if(nan==NULL){
 			return NULL;
 		}
 		nan->nombre=be64toh(nombre);//nombre transformé en représentation locale
-		nan->nomfichier="stdin";
+		nan->index=index;
 		addtobuffer(nan);
 	}
 }
 
 /*
  * addtobuffer
- * rajoute le numberandname passé en argument à buffer en respectant le protocole des producers-consumers
+ * rajoute le numberandindex passé en argument à buffer en respectant le protocole des producers-consumers
  *
- * nan : structure numberandname a ajouter au buffer
+ * nan : structure numberandindex a ajouter au buffer
  *
  */
-void addtobuffer(numberandname * nan){
+void addtobuffer(numberandindex * nan){
 	sem_wait(&empty);
 	pthread_mutex_lock(&buffermutex);
 		ind++;
@@ -519,22 +542,22 @@ void addtobuffer(numberandname * nan){
 
 /*
  * readfrombuffer
- * retire et renvoie un numberandname de buffer en respectant le protocole des producers-consumers
- * renvoie un pointeur vers un numberandname avec un nombre=0 si le buffer est vide est la lecture de tous les fichiers est terminée
+ * retire et renvoie un numberandindex de buffer en respectant le protocole des producers-consumers
+ * renvoie un pointeur vers un numberandindex avec un nombre=0 si le buffer est vide est la lecture de tous les fichiers est terminée
  * 
  */
-numberandname * readfrombuffer(){
-	numberandname * nan;
+numberandindex * readfrombuffer(){
+	numberandindex * nan;
 	sem_wait(&full);
 	pthread_mutex_lock(&buffermutex);
 		if(ind==-1 && finishedreading==1){
 			sem_post(&full);
-			nan=(numberandname *)malloc(sizeof(numberandname));
+			nan=(numberandindex *)malloc(sizeof(numberandindex));
 			if(nan==NULL){
 				return NULL; // compléter
 			}
 			nan->nombre=0;
-			nan->nomfichier="x";
+			nan->index=0;
 		}
 		else{
 			nan=buffer[ind];
@@ -558,9 +581,9 @@ PrimeNumber * merge(int nthr, PrimeNumber * retvals[]){
 	if(finallist==NULL){
 		return NULL;
 	}
-	finallist->nbr=0;
+	finallist->facteur=0;
 	finallist->multiple=0;
-	finallist->file="x";
+	finallist->index=0;
 	finallist->next=retvals[0];
 	// on prend la liste chainée du premier thread, puis on y rajoute succésivement les listes chainées des autres threads.
 	PrimeNumber * currentnode;
@@ -578,14 +601,14 @@ PrimeNumber * merge(int nthr, PrimeNumber * retvals[]){
 				addnode=NULL;
 			}
 			else{
-				if(addnode->nbr == nextnode->nbr){//si le nombre a insérer est déjà dans la liste principale
+				if(addnode->facteur == nextnode->facteur){//si le nombre a insérer est déjà dans la liste principale
 					nextnode->multiple=1;
 					nextaddnode=addnode->next;
 					free(addnode);
 					addnode=NULL;
 					addnode=nextaddnode;
 				}
-				else if(addnode->nbr < nextnode->nbr){//s'il faut insérer addnode entre currentnode et nextnode
+				else if(addnode->facteur < nextnode->facteur){//s'il faut insérer addnode entre currentnode et nextnode
 					currentnode->next=addnode;
 					nextaddnode=addnode->next;
 					addnode->next=nextnode;
