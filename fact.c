@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/time.h>
-#include "netread.h"
+//#include "netread.h"
 
 #define f(x)  (x*x+1)
 #define BSIZE 1000 //a faire varier
@@ -35,13 +35,13 @@ typedef struct{
 typedef struct primenumber{
 	uint32_t nbr; 
 	int multiple; 
-	struct primenumber* next;
+	struct primenumber * next;
 	char * file;
 } PrimeNumber;
 
 uint64_t pollard(uint64_t);
 void addprimefactor(uint64_t, PrimeNumber*, char*);
-void getnumbers();
+void * getnumbers(void * arg);
 void decomp(uint64_t, PrimeNumber*, char*);
 uint64_t pollard(uint64_t);
 uint64_t fact(uint64_t);
@@ -76,17 +76,18 @@ int main(int argc, char * argv[]){
 
 	//récupérer le nombre max de threads passé en argument
 	int consnumber=getmaxthreads(argc, argv);
+printf("consnumber=%i\n", consnumber);
 	if(consnumber==0)
 		return EXIT_FAILURE;
 	
-
 	//initialisation des mutex/sémaphores associées au buffer à partager entre producers et consumers
 	pthread_mutex_init( &buffermutex, NULL);	
 	sem_init(&empty, 0, BSIZE);
 	sem_init(&full, 0, 0);
 
-	//déterminer le nombre de fichiers à lire pr savoir combien de thread producteur il va falloir lancer
+	//déterminer le nombre de fichiers à lire pr savoir combien de threads producteur il va falloir lancer
 	int prodnumber=filescount (argc, argv);
+printf("prodnumber=%i\n", prodnumber);
 
 	//lancer la lecture des fichiers pour alimenter le buffer
 	pthread_t threadsprod[prodnumber];
@@ -99,19 +100,18 @@ int main(int argc, char * argv[]){
 		}			
 		else if (strcmp(argv[i],"file")==0){
 			pthread_create(&(threadsprod[a]), NULL, &lecturefichier, (void *)argv[i+1]); 
-
+			a++;
 		}
 		else if (strncmp(argv[i],"http://",7)==0){
-			pthread_create(&(threadsprod[a]), NULL, &lectureURL, (void *)argv[i]); 
+			pthread_create(&(threadsprod[a]), NULL, &lectureURL, (void *)argv[i]);
+			a++; 
 		}
 	}
-
 	//lancer les threads consumer pour factoriser les nombres
 	pthread_t threadscons [consnumber];
 	for(i=0; i<consnumber; i++){
-		pthread_create(&(threadscons[i]), NULL, NULL, NULL); //consumer? argument?
+		pthread_create(&(threadscons[i]), NULL, &getnumbers, NULL);
 	}
-
 	//on récuppère les threads producteurs
 	for(i=0; i<prodnumber; i++){
 		pthread_join(threadsprod[i], NULL); // NULL pr la valeur de retour?
@@ -120,17 +120,14 @@ int main(int argc, char * argv[]){
 	finishedreading=1;//la lecture des fichiers est terminée
 	sem_post(&full);//pour débloquer les threads consumers (similaire à problème du rdv)
 
-
 	//récupère les listes chainées de chaque thread
 	PrimeNumber * retvals [consnumber]; 
 	for(i=0; i<consnumber; i++){
 		pthread_join(threadscons[i], (void **)&(retvals[i]));
 	}
 
-
 	//merge les listes chainées
 	PrimeNumber * finallist = merge(consnumber, retvals);	
-	
 
 	//trouve le résultat, et printf
 	PrimeNumber * solution = findsolution(finallist);
@@ -138,7 +135,6 @@ int main(int argc, char * argv[]){
 		perror("no solution found");
 		return EXIT_FAILURE;
 	}
-
 
 	//free finallist
 	freelinkedlist(finallist);
@@ -157,17 +153,21 @@ int main(int argc, char * argv[]){
  *
  *
  */
-void getnumbers(){
+void * getnumbers(void * arg){
  	numberandname* nan;
- 	PrimeNumber* factorlist = malloc(sizeof(PrimeNumber*));
- 	if(factorlist == NULL)
+ 	PrimeNumber* factorlist = malloc(sizeof(PrimeNumber));
+	if(factorlist == NULL)
  		exit(EXIT_FAILURE);
+	factorlist->nbr=0;
+	factorlist->multiple=0;
+	factorlist->file="x";
  	nan = readfrombuffer();
- 	while((*nan).nombre!=0) {
+ 	while(nan->nombre!=0) {
  	 	printf("%p\n", &factorlist);
- 		decomp((*nan).nombre, factorlist, (*nan).nomfichier);
+ 		decomp(nan->nombre, factorlist, nan->nomfichier);
  		nan = readfrombuffer();
  	}
+	return NULL;
 }
 
 
@@ -436,6 +436,7 @@ void * lecturefichier(void * filename){
  * urlname : nom du fichier URL à lire
  */
 void * lectureURL(void * urlname){
+/*
 	char * nomurl=(char *) urlname;
 	int descr;
 	int e;
@@ -467,6 +468,8 @@ void * lectureURL(void * urlname){
 		perror("closeurl");
 		return NULL;
 	}
+*/
+return NULL;
 }
 
 
@@ -522,7 +525,7 @@ numberandname * readfrombuffer(){
 	numberandname * nan;
 	sem_wait(&full);
 	pthread_mutex_lock(&buffermutex);
-		if(ind==-1 && finishedreading==1){ // pas tt à fait sur
+		if(ind==-1 && finishedreading==1){
 			sem_post(&full);
 			nan=(numberandname *)malloc(sizeof(numberandname));
 			if(nan==NULL){
