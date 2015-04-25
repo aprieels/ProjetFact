@@ -184,7 +184,8 @@ void * getnumbers(void * arg){
 	factorlist->index=0;
  	nan = readfrombuffer();
  	while(nan->nombre!=0) {
- 		decomp(nan->nombre, factorlist, nan->index);
+ 		decomp(nan->nombre, factorlist, nan->nomfichier);
+ 		free(nan);
  		nan = readfrombuffer();
  	}
 	return factorlist;
@@ -482,12 +483,12 @@ void * readURL(void * fax){
 			perror("readurl");
 			return NULL;
 		}
-		nan=(numberandindex *)malloc(sizeof(numberandindex));
+		nan=(numberandname *)malloc(sizeof(numberandname));
 		if(nan==NULL){
 			return NULL;
 		}
 		nan->nombre=be64toh(nombre);
-		nan->index=nomurl;
+		nan->nomfichier=nomurl;
 		addtobuffer(nan);
 	}
 	//fermer le fichier
