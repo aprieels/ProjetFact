@@ -39,7 +39,6 @@ typedef struct primeNumber{
 	struct primeNumber * next;
 } primeNumber;
 
-
 /*
  * un nom de fichier et son index dans argv[]
  *
@@ -77,7 +76,7 @@ pthread_mutex_t buffermutex;
 sem_t empty;
 sem_t full;
 
-
+//___________________________________________________________________________
 
 int main(int argc, char * argv[]){
 	struct timeval tv1;
@@ -196,6 +195,7 @@ void * factorise(void * arg){
 }
 
 
+
 /*
  * Décomposition en facteurs premiers d'un nombre
  *
@@ -253,6 +253,7 @@ uint64_t pollard(uint64_t facteur){
 }
 
 
+
 /*
  * gcd
  * Calcule le PGCD de deux nombres en utilisant l'algorithme d'Euclide
@@ -270,6 +271,7 @@ uint64_t gcd(uint64_t a, uint64_t b){
     return a;
 }
  
+
 
 /*
  * naive
@@ -290,6 +292,7 @@ uint64_t naive(uint64_t facteur){
 	}
 	return 0; //Aucun diviseur n'a été trouvé, facteur est donc premier
 }
+
 
 
 /*
@@ -344,6 +347,7 @@ void addprimefactor(uint32_t factor, primeNumber* factorlist, short index){
 		}
 	}
 }
+
 	
 
 /*
@@ -382,6 +386,8 @@ int filescount (int argc, char * argv[]){
 	}
 	return files;
 }
+
+
 
 /*
  * readfile
@@ -425,6 +431,8 @@ void * readfile(void * arg){
 		return NULL;
 	}
 }
+
+
 
 /*
  * readURL
@@ -475,6 +483,7 @@ return NULL;
 }
 
 
+
 /*
  * readstdin
  * lit l'entrée standard et place les nombres provenant de l'entrée standard dans le buffer
@@ -506,6 +515,8 @@ void * readstdin(void * arg){
 	}
 }
 
+
+
 /*
  * addtobuffer
  * rajoute le numberAndIndex passé en argument à buffer en respectant le protocole des producers-consumers
@@ -521,6 +532,8 @@ void addtobuffer(numberAndIndex * nan){
 	pthread_mutex_unlock(&buffermutex);
 	sem_post(&full);	
 }
+
+
 
 /*
  * readfrombuffer
@@ -550,6 +563,8 @@ numberAndIndex * readfrombuffer(){
 	sem_post(&empty);
 	return nan;
 }
+
+
 
 /*
  * merge
@@ -607,6 +622,8 @@ primeNumber * merge(int nthr, primeNumber * retvals[]){
 	return finallist;
 }
 
+
+
 /*
  * findsolution
  * trouve le plus grand facteur premier unique présent dans une liste chainée ordonnée dans l'ordre croissant
@@ -624,6 +641,7 @@ primeNumber * findsolution(primeNumber* finallist){
 	}
 	return solution;
 }
+
 
 
 /*
