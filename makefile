@@ -1,5 +1,8 @@
-all: fact
+all: fact.c
 
-fact: fact.c
-	gcc -o fact fact.c -lpthread netread.c $(pkg-config --libs --cflags libcurl)
+fact.c: netread.o
+	gcc fact.c netread.c -lcurl -lpthread -o fact
+
+
+
 

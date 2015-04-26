@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/time.h>
-//#include "netread.h"
+#include "netread.h"
 
 #define f(x)  (x*x+1)
 #define BSIZE 1000 //a faire varier
@@ -437,8 +437,7 @@ void * readfile(void * arg){
  * urlname : nom du fichier URL à lire
  * return = NULL
  */
-void * readURL(void * fax){
-/*
+void * readURL(void * arg){
 	fileAndIndex * fax=(fileAndIndex *) arg;
 	char * file = fax->file;
 	short index=fax->index;
@@ -447,7 +446,7 @@ void * readURL(void * fax){
 	int descr;
 	int e;
 	uint64_t nombre;
-	numberAndIndex * nan;
+	numberAndIndex * nai;
 	//ouvrir le fichier depuis le reseau
 	const char * mode="r";
 	URL_FILE *url =url_fopen(file,mode);
@@ -461,21 +460,20 @@ void * readURL(void * fax){
 			perror("readurl");
 			return NULL;
 		}
-		nan=(numberandname *)malloc(sizeof(numberandname));
-		if(nan==NULL){
+		nai=(numberAndIndex *)malloc(sizeof(numberAndIndex));
+		if(nai==NULL){
 			return NULL;
 		}
-		nan->nombre=be64toh(nombre);
-		nan->nomfichier=nomurl;
-		addtobuffer(nan);
+		nai->nombre=be64toh(nombre);
+		nai->index=index;
+		addtobuffer(nai);
 	}
 	//fermer le fichier
 	if(url_fclose(url)!=0){
 		perror("closeurl");
 		return NULL;
 	}
-*/
-return NULL;
+	return NULL;
 }
 
 
