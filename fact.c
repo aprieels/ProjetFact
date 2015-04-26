@@ -155,7 +155,7 @@ int main(int argc, char * argv[]){
 		return EXIT_FAILURE;
 	}
 
-	printf("solution : %i\n", solution->facteur);
+	printf("solution : %u\n", solution->facteur);
 	printf("fichier : %s\n", argv[solution->index]);
 
 	//free finallist
