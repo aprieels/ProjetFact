@@ -168,7 +168,7 @@ int main(int argc, char * argv[]){
 	int usec = (int)(tv2.tv_usec - tv1.tv_usec);
 	if(usec < 0){
 		sec = sec-1;
-		usec = 1000000-usec;
+		usec = 1000000+usec;
 	}
 	printf("sec écoulé : %d\n", sec);
 	printf("usec écoulé : %d\n", usec);
