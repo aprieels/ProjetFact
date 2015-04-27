@@ -98,7 +98,7 @@ int main(int argc, char * argv[]){
 	int prodnumber=filescount (argc, argv);
 
 	//lancer la lecture des fichiers pour alimenter le buffer, 1 fichier = 1 thread
-	pthread_t threadsprod[prodnumber];
+	pthread_t threadsprod [prodnumber];
 	fileAndIndex * fax;
 	int a=0;
 	int i;
