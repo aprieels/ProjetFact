@@ -294,7 +294,7 @@ uint64_t naive(uint64_t facteur){
 		return 0;
 	if (facteur % 2 == 0) //Vérifie que 2 n'est pas un facteur
 		return 2;
-	for(i=3; (i*i) < facteur; i=i+2){ //Ne teste pas les nombres pairs car, puisque 2 n'est pas un facteur, ces multiples ne peuvent pas non plus en être. On s'arrête à la racine carée de facteur car aucun nombre supérieur à celle-ci ne pourra être un diviseur de facteur.
+	for(i=3; (i*i) <= facteur; i=i+2){ //Ne teste pas les nombres pairs car, puisque 2 n'est pas un facteur, ces multiples ne peuvent pas non plus en être. On s'arrête à la racine carée de facteur car aucun nombre supérieur à celle-ci ne pourra être un diviseur de facteur.
 		if (facteur % i == 0)
 			return i; //Retourne i si c'est un diviseur de facteur
 	}
