@@ -96,6 +96,7 @@ int main(int argc, char * argv[]){
 
 	//déterminer le nombre de fichiers à lire pour savoir combien de threads producteur il va falloir lancer
 	int prodnumber=filescount (argc, argv);
+printf("prodnum :%i\n",prodnumber);
 
 	//lancer la lecture des fichiers pour alimenter le buffer, 1 fichier = 1 thread
 	pthread_t threadsprod [prodnumber];
@@ -401,30 +402,30 @@ void * readfile(void * arg){
 	int descr;
 	int e;
 	uint64_t nombre;
-	numberAndIndex * nan;
+	numberAndIndex * nai;
 	//ouvrir le fichier
 	if((descr=open(file, O_RDONLY))<0){
 		perror("open");
-		return NULL;
+		exit(EXIT_FAILURE);
 	}
 	//lire le fichier
 	while( (e=read(descr, &nombre, sizeof(uint64_t))) != 0){
 		if(e<0){
 			perror("read");
-			return NULL;
+			exit(EXIT_FAILURE);
 		}
-		nan=(numberAndIndex *)malloc(sizeof(numberAndIndex));
-		if(nan==NULL){
-			return NULL;
+		nai=(numberAndIndex *)malloc(sizeof(numberAndIndex));
+		if(nai==NULL){
+			exit(EXIT_FAILURE);
 		}
-		nan->nombre=be64toh(nombre);//nombre transformé en représentation locale
-		nan->index=index;
-		addtobuffer(nan);
+		nai->nombre=be64toh(nombre);//nombre transformé en représentation locale
+		nai->index=index;
+		addtobuffer(nai);
 	}
 	//fermer le fichier
 	if(close(descr)!=0){
 		perror("close");
-		return NULL;
+		exit(EXIT_FAILURE);
 	}
 }
 
@@ -440,6 +441,7 @@ void * readfile(void * arg){
 void * readURL(void * arg){
 	fileAndIndex * fax=(fileAndIndex *) arg;
 	char * file = fax->file;
+printf("%s\n", file);
 	short index=fax->index;
 	free(fax);
 	fax=NULL;
@@ -452,18 +454,19 @@ void * readURL(void * arg){
 	URL_FILE *url =url_fopen(file,mode);
 	if(url==NULL){
 		perror("openurl");
-		return NULL;
+		exit(EXIT_FAILURE);
 	}
 	//lire le fichier depuis le reseau
 	while(url_feof(url)==0){//tant que le fichier n'est pas terminé
 		if((int)url_fread(&nombre, sizeof(uint64_t), 1, url)==0){
 			perror("readurl");
-			return NULL;
+			exit(EXIT_FAILURE);
 		}
 		nai=(numberAndIndex *)malloc(sizeof(numberAndIndex));
 		if(nai==NULL){
-			return NULL;
+			exit(EXIT_FAILURE);
 		}
+
 		nai->nombre=be64toh(nombre);
 		nai->index=index;
 		addtobuffer(nai);
@@ -471,7 +474,7 @@ void * readURL(void * arg){
 	//fermer le fichier
 	if(url_fclose(url)!=0){
 		perror("closeurl");
-		return NULL;
+		exit(EXIT_FAILURE);
 	}
 	return NULL;
 }
@@ -493,19 +496,19 @@ void * readstdin(void * arg){
 	int descr;
 	int e;
 	uint64_t nombre;
-	numberAndIndex * nan;
+	numberAndIndex * nai;
 	while( (e=read(0, &nombre, sizeof(uint64_t))) != 0){
 		if(e<0){
 			perror("readstdin");				
-			return NULL;
+			exit(EXIT_FAILURE);
 		}
-		nan=(numberAndIndex *)malloc(sizeof(numberAndIndex));
-		if(nan==NULL){
-			return NULL;
+		nai=(numberAndIndex *)malloc(sizeof(numberAndIndex));
+		if(nai==NULL){
+			exit(EXIT_FAILURE);
 		}
-		nan->nombre=be64toh(nombre);//nombre transformé en représentation locale
-		nan->index=index;
-		addtobuffer(nan);
+		nai->nombre=be64toh(nombre);//nombre transformé en représentation locale
+		nai->index=index;
+		addtobuffer(nai);
 	}
 }
 
