@@ -2,9 +2,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <fcntl.h>
+#include <endian.h>
 
 int main(int argc, char * argv[]){
 	uint64_t nombre=1;
+	uint64_t nbr;
 	char * newfile= "file5";
 	FILE * file;
 	int e;
@@ -12,8 +14,9 @@ int main(int argc, char * argv[]){
 	file=fopen(newfile, "w");
 	//écrire le fichier
 	int i;
-	for(i=0; i<10000; i++){
-		e=(int)fwrite(&nombre, sizeof(uint64_t), 1, file);
+	for(i=0; i<100000; i++){
+		nbr=htobe64(nombre);
+		e=(int)fwrite(&nbr, sizeof(uint64_t), 1, file);
 		if(e<=0){
 			perror("write");
 			return EXIT_FAILURE;
