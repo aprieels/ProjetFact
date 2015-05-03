@@ -96,7 +96,7 @@ int main(int argc, char * argv[]){
 
 	//déterminer le nombre de fichiers à lire pour savoir combien de threads producteur il va falloir lancer
 	int prodnumber=filescount (argc, argv);
-printf("prodnum :%i\n",prodnumber);
+
 
 	//lancer la lecture des fichiers pour alimenter le buffer, 1 fichier = 1 thread
 	pthread_t threadsprod [prodnumber];
@@ -151,7 +151,7 @@ printf("prodnum :%i\n",prodnumber);
 
 	//trouve le résultat, et printf
 	primeNumber * solution = findsolution(finallist);
-	if(solution->facteur==0){
+	if(solution==NULL){
 		perror("no solution found");
 		return EXIT_FAILURE;
 	}
@@ -191,7 +191,7 @@ void * factorise(void * arg){
 	if(factorlist == NULL)
  		exit(EXIT_FAILURE);
 	factorlist->facteur=0;
-	factorlist->multiple=0;
+	factorlist->multiple=1;
 	factorlist->index=0;
 	factorlist -> next = NULL;
  	nai = readfrombuffer();
@@ -441,7 +441,6 @@ void * readfile(void * arg){
 void * readURL(void * arg){
 	fileAndIndex * fax=(fileAndIndex *) arg;
 	char * file = fax->file;
-printf("%s\n", file);
 	short index=fax->index;
 	free(fax);
 	fax=NULL;
@@ -547,7 +546,7 @@ numberAndIndex * readfrombuffer(){
 			sem_post(&full);
 			nan=(numberAndIndex *)malloc(sizeof(numberAndIndex));
 			if(nan==NULL){
-				return NULL; // compléter
+				return NULL;
 			}
 			nan->nombre=0;
 			nan->index=0;
@@ -578,7 +577,7 @@ primeNumber * merge(int nthr, primeNumber * retvals[]){
 		return NULL;
 	}
 	finallist->facteur=0;
-	finallist->multiple=0;
+	finallist->multiple=1;
 	finallist->index=0;
 	finallist->next=retvals[0];
 	// on prend la liste chainée du premier thread, puis on y rajoute succésivement les listes chainées des autres threads.
@@ -632,11 +631,11 @@ primeNumber * findsolution(primeNumber* finallist){
 	primeNumber * solution=finallist;//parce qu'on sait que le premier élément de finalist est 0
 	while(finallist!=NULL){
 		if(finallist->multiple==0){
-			solution=finallist;
+			return finallist;
 		}
 		finallist=finallist->next;
 	}
-	return solution;
+	return NULL;
 }
 
 
