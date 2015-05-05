@@ -97,6 +97,7 @@ int main(int argc, char * argv[]){
 	//déterminer le nombre de fichiers à lire pour savoir combien de threads producteur il va falloir lancer
 	int prodnumber=filescount (argc, argv);
 
+	curl_global_init(CURL_GLOBAL_ALL);//pour permettre une utilisation propre de curl dans la lecture des URLs
 
 	//lancer la lecture des fichiers pour alimenter le buffer, 1 fichier = 1 thread
 	pthread_t threadsprod [prodnumber];
@@ -111,10 +112,10 @@ int main(int argc, char * argv[]){
 			pthread_create(&(threadsprod[a]), NULL, &readstdin, (void *)fax);
 			a++;
 		}			
-		else if (strcmp(argv[i],"file")==0){
+		else if (strncmp(argv[i],"file",4)==0){
 			fax = (fileAndIndex *)malloc(sizeof(fileAndIndex));
-			fax->index=(short)(i+1);
-			fax->file=argv[i+1];
+			fax->index=(short)i;
+			fax->file=argv[i];
 			pthread_create(&(threadsprod[a]), NULL, &readfile, (void *)fax); 
 			a++;
 		}
@@ -137,6 +138,8 @@ int main(int argc, char * argv[]){
 	for(i=0; i<prodnumber; i++){
 		pthread_join(threadsprod[i], NULL);
 	}
+
+	curl_global_cleanup();
 
 	sem_post(&full);//pour débloquer les threads consumers (similaire à problème du rdv)
 
@@ -378,7 +381,7 @@ int filescount (int argc, char * argv[]){
 	int files=0;
 	int i;
 	for(i=1; i<argc; i++){
-		if(strcmp(argv[i], "-stdin")==0 || strcmp(argv[i],"file")==0 || strncmp(argv[i],"http://",7)==0)
+		if(strcmp(argv[i], "-stdin")==0 || strncmp(argv[i],"file",4)==0 || strncmp(argv[i],"http://",7)==0)
 			files++;
 	}
 	return files;
@@ -509,6 +512,7 @@ void * readstdin(void * arg){
 		nai->index=index;
 		addtobuffer(nai);
 	}
+	return NULL;
 }
 
 
