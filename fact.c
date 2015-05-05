@@ -458,6 +458,7 @@ void * readURL(void * arg){
 		perror("openurl");
 		exit(EXIT_FAILURE);
 	}
+
 	//lire le fichier depuis le reseau
 	while(url_feof(url)==0){//tant que le fichier n'est pas terminé
 		if((int)url_fread(&nombre, sizeof(uint64_t), 1, url)==0){
@@ -473,6 +474,7 @@ void * readURL(void * arg){
 		nai->index=index;
 		addtobuffer(nai);
 	}
+
 	//fermer le fichier
 	if(url_fclose(url)!=0){
 		perror("closeurl");
